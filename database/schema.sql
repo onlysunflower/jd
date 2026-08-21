@@ -1,0 +1,172 @@
+CREATE DATABASE IF NOT EXISTS jd_clone_mall
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_unicode_ci;
+
+USE jd_clone_mall;
+
+DROP TABLE IF EXISTS operation_log;
+DROP TABLE IF EXISTS review;
+DROP TABLE IF EXISTS refund_log;
+DROP TABLE IF EXISTS refund_request;
+DROP TABLE IF EXISTS order_item;
+DROP TABLE IF EXISTS order_info;
+DROP TABLE IF EXISTS address;
+DROP TABLE IF EXISTS cart_item;
+DROP TABLE IF EXISTS product;
+DROP TABLE IF EXISTS category;
+DROP TABLE IF EXISTS shop;
+DROP TABLE IF EXISTS merchant;
+DROP TABLE IF EXISTS user;
+
+CREATE TABLE user (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL UNIQUE,
+  password VARCHAR(128) NOT NULL,
+  nickname VARCHAR(64),
+  phone VARCHAR(32),
+  role VARCHAR(32) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'NORMAL',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE merchant (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  company_name VARCHAR(128) NOT NULL,
+  contact_name VARCHAR(64),
+  contact_phone VARCHAR(32),
+  status VARCHAR(32) NOT NULL DEFAULT 'APPROVED',
+  reject_reason VARCHAR(255),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE shop (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  merchant_id BIGINT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  description VARCHAR(255),
+  status VARCHAR(32) NOT NULL DEFAULT 'NORMAL',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE category (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(64) NOT NULL,
+  parent_id BIGINT DEFAULT 0,
+  sort_order INT DEFAULT 0
+);
+
+CREATE TABLE product (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  merchant_id BIGINT NOT NULL,
+  category_id BIGINT,
+  name VARCHAR(128) NOT NULL,
+  subtitle VARCHAR(255),
+  main_image VARCHAR(500),
+  price DECIMAL(10,2) NOT NULL,
+  stock INT NOT NULL DEFAULT 0,
+  sales INT NOT NULL DEFAULT 0,
+  audit_status VARCHAR(32) NOT NULL,
+  shelf_status VARCHAR(32) NOT NULL,
+  reject_reason VARCHAR(255),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE cart_item (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_product (user_id, product_id)
+);
+
+CREATE TABLE address (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  receiver VARCHAR(64) NOT NULL,
+  phone VARCHAR(32) NOT NULL,
+  province VARCHAR(64),
+  city VARCHAR(64),
+  detail VARCHAR(255),
+  is_default INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE order_info (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_no VARCHAR(64) NOT NULL UNIQUE,
+  user_id BIGINT NOT NULL,
+  merchant_id BIGINT NOT NULL,
+  total_amount DECIMAL(10,2) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  receiver VARCHAR(64),
+  receiver_phone VARCHAR(32),
+  receiver_address VARCHAR(255),
+  logistics_company VARCHAR(64),
+  logistics_no VARCHAR(64),
+  paid_at DATETIME,
+  shipped_at DATETIME,
+  completed_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE order_item (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  product_name VARCHAR(128) NOT NULL,
+  product_image VARCHAR(500),
+  price DECIMAL(10,2) NOT NULL,
+  quantity INT NOT NULL
+);
+
+CREATE TABLE refund_request (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  merchant_id BIGINT NOT NULL,
+  type VARCHAR(32) NOT NULL,
+  reason VARCHAR(255) NOT NULL,
+  evidence_images VARCHAR(1000),
+  amount DECIMAL(10,2) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  merchant_reply VARCHAR(255),
+  return_logistics_no VARCHAR(64),
+  admin_decision VARCHAR(64),
+  admin_remark VARCHAR(255),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE refund_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  refund_id BIGINT NOT NULL,
+  operator_role VARCHAR(32) NOT NULL,
+  operator_id BIGINT NOT NULL,
+  action VARCHAR(64) NOT NULL,
+  remark VARCHAR(255),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE review (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  rating INT NOT NULL,
+  content VARCHAR(500),
+  reply VARCHAR(500),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE operation_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  operator_id BIGINT,
+  operator_role VARCHAR(32),
+  module VARCHAR(64),
+  action VARCHAR(64),
+  detail VARCHAR(500),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
