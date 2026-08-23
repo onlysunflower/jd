@@ -1,9 +1,14 @@
 :root {
   --jd-red: #e2231a;
+  --jd-red-dark: #b91c1c;
   --ink: #1f2937;
   --muted: #6b7280;
   --line: #e5e7eb;
   --soft: #f6f7f9;
+  --paper: #ffffff;
+  --green: #059669;
+  --blue: #2563eb;
+  --amber: #d97706;
 }
 
 * {
@@ -14,7 +19,9 @@ body {
   margin: 0;
   color: var(--ink);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-  background: var(--soft);
+  background:
+    linear-gradient(180deg, #fff7f7 0, #f6f7f9 260px),
+    var(--soft);
 }
 
 .app-shell {
@@ -22,14 +29,18 @@ body {
 }
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: grid;
   grid-template-columns: 260px 1fr auto;
   align-items: center;
   gap: 16px;
   height: 64px;
   padding: 0 24px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(12px);
 }
 
 .brand {
@@ -48,6 +59,7 @@ body {
   color: #fff;
   background: var(--jd-red);
   border-radius: 6px;
+  box-shadow: 0 10px 20px rgba(226, 35, 26, 0.22);
 }
 
 .nav {
@@ -64,6 +76,7 @@ body {
 .page {
   max-width: 1240px;
   margin: 0 auto;
+  padding-bottom: 32px;
 }
 
 .toolbar {
@@ -76,22 +89,30 @@ body {
 
 .panel {
   padding: 20px;
-  background: #fff;
+  background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
 }
 
 .product-card {
   overflow: hidden;
-  background: #fff;
+  background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 8px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(226, 35, 26, 0.35);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.1);
 }
 
 .product-card img {
@@ -102,12 +123,25 @@ body {
 }
 
 .product-body {
-  padding: 14px;
+  padding: 16px;
+}
+
+.product-body h3 {
+  min-height: 48px;
+  margin: 0 0 8px;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.product-subtitle {
+  min-height: 42px;
+  margin: 0 0 12px;
+  line-height: 1.5;
 }
 
 .price {
   color: var(--jd-red);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
 }
 
@@ -119,10 +153,182 @@ body {
   color: var(--jd-red);
 }
 
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 20px;
+}
+
+.hero-main {
+  min-height: 260px;
+  padding: 32px;
+  color: #fff;
+  background:
+    linear-gradient(120deg, rgba(139, 22, 22, 0.94), rgba(226, 35, 26, 0.84)),
+    url("https://dummyimage.com/1200x520/111827/ffffff&text=JD+Mall+Core");
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgba(185, 28, 28, 0.22);
+}
+
+.hero-main h1 {
+  max-width: 640px;
+  margin: 0 0 12px;
+  font-size: 34px;
+  line-height: 1.2;
+}
+
+.hero-main p {
+  max-width: 620px;
+  margin: 0 0 22px;
+  color: rgba(255, 255, 255, 0.86);
+  line-height: 1.7;
+}
+
+.hero-side {
+  display: grid;
+  gap: 12px;
+}
+
+.metric-card {
+  padding: 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.metric-value {
+  display: block;
+  margin-top: 6px;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.section-title {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 22px 0 14px;
+}
+
+.section-title h2,
+.toolbar h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.section-title p,
+.toolbar p {
+  margin: 6px 0 0;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  padding: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.stat-card span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 26px;
+}
+
+.table-card {
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+}
+
+.table-card .el-table {
+  --el-table-header-bg-color: #f8fafc;
+}
+
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot::before {
+  display: block;
+  width: 7px;
+  height: 7px;
+  content: "";
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.empty-hint {
+  padding: 48px 20px;
+  color: var(--muted);
+  text-align: center;
+  background: var(--paper);
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+
+.compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--jd-red);
+  --el-button-border-color: var(--jd-red);
+  --el-button-hover-bg-color: var(--jd-red-dark);
+  --el-button-hover-border-color: var(--jd-red-dark);
+}
+
 @media (max-width: 860px) {
   .topbar {
     grid-template-columns: 1fr;
     height: auto;
     padding: 12px;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-main {
+    padding: 24px;
+  }
+
+  .hero-main h1 {
+    font-size: 28px;
   }
 }

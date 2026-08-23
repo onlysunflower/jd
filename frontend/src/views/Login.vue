@@ -43,7 +43,9 @@ const form = reactive({ username: 'user001', password: '123456' })
 
 const accounts = [
   { role: '普通用户', username: 'user001', password: '123456' },
+  { role: '普通用户二号', username: 'user002', password: '123456' },
   { role: '商家', username: 'merchant001', password: '123456' },
+  { role: '商家二号', username: 'merchant002', password: '123456' },
   { role: '客服管理员', username: 'service_admin', password: '123456' },
   { role: '商品审核员', username: 'product_admin', password: '123456' },
   { role: '超级管理员', username: 'super_admin', password: '123456' }

@@ -5,60 +5,125 @@
         <h2>商家后台</h2>
         <p class="muted">发布商品、处理订单发货、审核退款申请</p>
       </div>
-      <el-button type="primary" @click="productVisible = true">发布商品</el-button>
+      <el-space>
+        <el-button :icon="Refresh" @click="load">刷新</el-button>
+        <el-button type="primary" :icon="Plus" @click="productVisible = true">发布商品</el-button>
+      </el-space>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <span>商品数量</span>
+        <strong>{{ products.length }}</strong>
+      </div>
+      <div class="stat-card">
+        <span>待审核商品</span>
+        <strong>{{ countProducts('PENDING') }}</strong>
+      </div>
+      <div class="stat-card">
+        <span>待发货订单</span>
+        <strong>{{ countOrders('WAIT_SHIP') }}</strong>
+      </div>
+      <div class="stat-card">
+        <span>待处理售后</span>
+        <strong>{{ countRefunds('MERCHANT_REVIEWING') }}</strong>
+      </div>
     </div>
 
     <el-tabs v-model="tab" class="panel">
       <el-tab-pane label="商品管理" name="products">
-        <el-table :data="products">
-          <el-table-column prop="name" label="商品" min-width="180" />
-          <el-table-column prop="price" label="价格" width="100" />
+        <el-table :data="products" empty-text="暂无商品">
+          <el-table-column label="商品" min-width="260">
+            <template #default="{ row }">
+              <div class="product-cell">
+                <img :src="row.mainImage || placeholder" alt="商品图" />
+                <div>
+                  <strong>{{ row.name }}</strong>
+                  <p class="muted">{{ row.subtitle }}</p>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="价格" width="110">
+            <template #default="{ row }">￥{{ row.price }}</template>
+          </el-table-column>
           <el-table-column prop="stock" label="库存" width="90" />
-          <el-table-column prop="auditStatus" label="审核" width="120" />
-          <el-table-column prop="shelfStatus" label="上下架" width="100" />
+          <el-table-column prop="sales" label="销量" width="90" />
+          <el-table-column label="审核" width="120">
+            <template #default="{ row }">
+              <el-tag :type="auditType(row.auditStatus)">{{ auditText(row.auditStatus) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="上下架" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.shelfStatus === 'ON' ? 'success' : 'info'">{{ row.shelfStatus === 'ON' ? '上架' : '下架' }}</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="120">
             <template #default="{ row }">
-              <el-button link type="danger" @click="offShelf(row)">下架</el-button>
+              <el-button link type="danger" :icon="Close" @click="offShelf(row)">下架</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
 
       <el-tab-pane label="订单发货" name="orders">
-        <el-table :data="orders">
-          <el-table-column prop="orderNo" label="订单号" min-width="170" />
-          <el-table-column prop="totalAmount" label="金额" width="100" />
-          <el-table-column prop="status" label="状态" width="130" />
+        <el-table :data="orders" empty-text="暂无订单">
+          <el-table-column prop="orderNo" label="订单号" min-width="180" />
+          <el-table-column label="金额" width="110">
+            <template #default="{ row }">￥{{ row.totalAmount }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="130">
+            <template #default="{ row }">
+              <el-tag :type="orderType(row.status)">{{ orderText(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="receiverAddress" label="收货地址" min-width="240" show-overflow-tooltip />
           <el-table-column label="操作" width="160">
             <template #default="{ row }">
-              <el-button v-if="row.status === 'WAIT_SHIP'" link type="primary" @click="ship(row)">发货</el-button>
+              <el-button v-if="row.status === 'WAIT_SHIP'" link type="primary" :icon="Van" @click="ship(row)">发货</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
 
       <el-tab-pane label="售后处理" name="refunds">
-        <el-table :data="refunds">
+        <el-table :data="refunds" empty-text="暂无售后">
           <el-table-column prop="id" label="售后单" width="90" />
           <el-table-column prop="orderId" label="订单" width="90" />
-          <el-table-column prop="reason" label="原因" min-width="180" />
-          <el-table-column prop="status" label="状态" width="180" />
-          <el-table-column label="操作" width="280">
+          <el-table-column prop="reason" label="原因" min-width="220" show-overflow-tooltip />
+          <el-table-column label="状态" width="170">
             <template #default="{ row }">
-              <el-button v-if="row.status === 'MERCHANT_REVIEWING'" link type="primary" @click="approveRefund(row)">同意</el-button>
-              <el-button v-if="row.status === 'MERCHANT_REVIEWING'" link type="danger" @click="rejectRefund(row)">拒绝</el-button>
-              <el-button v-if="row.status === 'WAIT_MERCHANT_RECEIVE'" link type="primary" @click="confirmReturn(row)">确认收货并退款</el-button>
+              <el-tag :type="refundType(row.status)">{{ refundText(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="300" fixed="right">
+            <template #default="{ row }">
+              <div class="compact-actions">
+                <el-button v-if="row.status === 'MERCHANT_REVIEWING'" link type="primary" :icon="Check" @click="approveRefund(row)">同意</el-button>
+                <el-button v-if="row.status === 'MERCHANT_REVIEWING'" link type="danger" :icon="Close" @click="rejectRefund(row)">拒绝</el-button>
+                <el-button v-if="row.status === 'WAIT_MERCHANT_RECEIVE'" link type="primary" :icon="Money" @click="confirmReturn(row)">确认退款</el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="productVisible" title="发布商品" width="560px">
+    <el-dialog v-model="productVisible" title="发布商品" width="580px">
       <el-form :model="productForm" label-width="86px">
         <el-form-item label="商品名称"><el-input v-model="productForm.name" /></el-form-item>
         <el-form-item label="副标题"><el-input v-model="productForm.subtitle" /></el-form-item>
         <el-form-item label="图片地址"><el-input v-model="productForm.mainImage" /></el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="productForm.categoryId" style="width: 100%">
+            <el-option label="手机数码" :value="1" />
+            <el-option label="电脑办公" :value="2" />
+            <el-option label="家用电器" :value="3" />
+            <el-option label="生活百货" :value="4" />
+            <el-option label="生鲜食品" :value="5" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="价格"><el-input-number v-model="productForm.price" :min="0" /></el-form-item>
         <el-form-item label="库存"><el-input-number v-model="productForm.stock" :min="0" /></el-form-item>
       </el-form>
@@ -73,6 +138,7 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Check, Close, Money, Plus, Refresh, Van } from '@element-plus/icons-vue'
 import { merchantApi } from '../api'
 
 const tab = ref('products')
@@ -80,6 +146,7 @@ const products = ref([])
 const orders = ref([])
 const refunds = ref([])
 const productVisible = ref(false)
+const placeholder = 'https://dummyimage.com/120x90/f3f4f6/6b7280&text=JD'
 const productForm = reactive({
   categoryId: 1,
   name: '',
@@ -88,6 +155,58 @@ const productForm = reactive({
   price: 99,
   stock: 100
 })
+
+function countProducts(status) {
+  return products.value.filter((item) => item.auditStatus === status).length
+}
+
+function countOrders(status) {
+  return orders.value.filter((item) => item.status === status).length
+}
+
+function countRefunds(status) {
+  return refunds.value.filter((item) => item.status === status).length
+}
+
+function auditText(status) {
+  return { PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回' }[status] || status
+}
+
+function auditType(status) {
+  return { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger' }[status] || 'info'
+}
+
+function orderText(status) {
+  return {
+    WAIT_PAY: '待付款',
+    WAIT_SHIP: '待发货',
+    WAIT_RECEIVE: '待收货',
+    COMPLETED: '已完成',
+    CANCELED: '已取消',
+    REFUNDING: '退款中',
+    REFUNDED: '已退款'
+  }[status] || status
+}
+
+function orderType(status) {
+  return { WAIT_SHIP: 'primary', WAIT_RECEIVE: 'success', COMPLETED: 'success', REFUNDING: 'danger', CANCELED: 'info' }[status] || 'warning'
+}
+
+function refundText(status) {
+  return {
+    MERCHANT_REVIEWING: '商家审核中',
+    WAIT_USER_RETURN: '等待用户退货',
+    WAIT_MERCHANT_RECEIVE: '等待商家收货',
+    MERCHANT_REJECTED: '商家已拒绝',
+    PLATFORM_INTERVENING: '平台介入中',
+    REFUND_SUCCESS: '退款成功',
+    REFUND_FAILED: '退款失败'
+  }[status] || status
+}
+
+function refundType(status) {
+  return { MERCHANT_REVIEWING: 'warning', WAIT_MERCHANT_RECEIVE: 'primary', PLATFORM_INTERVENING: 'danger', REFUND_SUCCESS: 'success', REFUND_FAILED: 'info' }[status] || 'info'
+}
 
 async function load() {
   products.value = await merchantApi.products()
@@ -137,3 +256,24 @@ async function confirmReturn(row) {
 watch(tab, load)
 onMounted(load)
 </script>
+
+<style scoped>
+.product-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.product-cell img {
+  width: 72px;
+  height: 54px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.product-cell p {
+  max-width: 420px;
+  margin: 5px 0 0;
+}
+</style>

@@ -9,6 +9,8 @@ mysql -u root -p < database/schema.sql
 mysql -u root -p < database/data.sql
 ```
 
+如果之前已经导入过旧数据，也按上面的顺序重新执行一遍。`schema.sql` 会重建表结构，`data.sql` 会写入更多商品、订单、售后和多角色测试数据。
+
 如果你的 MySQL 密码不是 `123456`，请修改：
 
 ```text
