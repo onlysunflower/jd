@@ -132,6 +132,37 @@
         <el-button type="primary" @click="createProduct">提交审核</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="shipVisible" title="订单发货" width="500px">
+      <el-alert
+        title="课程项目中使用模拟物流单号。真实业务里单号通常由京东物流、快递鸟、顺丰等物流系统创建运单后返回。"
+        type="info"
+        show-icon
+        :closable="false"
+        style="margin-bottom: 18px"
+      />
+      <el-form :model="shipForm" label-width="90px">
+        <el-form-item label="物流公司">
+          <el-select v-model="shipForm.logisticsCompany" style="width: 100%" @change="generateLogisticsNo">
+            <el-option label="京东快递" value="京东快递" />
+            <el-option label="顺丰速运" value="顺丰速运" />
+            <el-option label="中通快递" value="中通快递" />
+            <el-option label="圆通速递" value="圆通速递" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="物流单号">
+          <el-input v-model="shipForm.logisticsNo">
+            <template #append>
+              <el-button @click="generateLogisticsNo">重新生成</el-button>
+            </template>
+          </el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="shipVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitShip">确认发货</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -146,6 +177,8 @@ const products = ref([])
 const orders = ref([])
 const refunds = ref([])
 const productVisible = ref(false)
+const shipVisible = ref(false)
+const currentOrder = ref(null)
 const placeholder = 'https://dummyimage.com/120x90/f3f4f6/6b7280&text=JD'
 const productForm = reactive({
   categoryId: 1,
@@ -154,6 +187,10 @@ const productForm = reactive({
   mainImage: '',
   price: 99,
   stock: 100
+})
+const shipForm = reactive({
+  logisticsCompany: '京东快递',
+  logisticsNo: ''
 })
 
 function countProducts(status) {
@@ -227,10 +264,31 @@ async function offShelf(row) {
   load()
 }
 
-async function ship(row) {
-  const { value } = await ElMessageBox.prompt('请输入物流单号', '订单发货')
-  await merchantApi.ship(row.id, { logisticsCompany: '京东快递', logisticsNo: value })
+function ship(row) {
+  currentOrder.value = row
+  shipForm.logisticsCompany = '京东快递'
+  generateLogisticsNo()
+  shipVisible.value = true
+}
+
+function generateLogisticsNo() {
+  const prefixes = {
+    京东快递: 'JDV',
+    顺丰速运: 'SF',
+    中通快递: 'ZT',
+    圆通速递: 'YT'
+  }
+  const prefix = prefixes[shipForm.logisticsCompany] || 'EXP'
+  shipForm.logisticsNo = `${prefix}${Date.now().toString().slice(-10)}${Math.floor(Math.random() * 90 + 10)}`
+}
+
+async function submitShip() {
+  await merchantApi.ship(currentOrder.value.id, {
+    logisticsCompany: shipForm.logisticsCompany,
+    logisticsNo: shipForm.logisticsNo
+  })
   ElMessage.success('已发货')
+  shipVisible.value = false
   load()
 }
 
