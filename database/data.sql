@@ -29,14 +29,14 @@ INSERT INTO category (id, name, parent_id, sort_order) VALUES
 INSERT INTO product
 (id, merchant_id, category_id, name, subtitle, main_image, price, stock, sales, audit_status, shelf_status, reject_reason)
 VALUES
-(1, 1, 1, 'JDPhone Pro 15', '高刷屏幕，长续航，适合演示下单流程', 'https://dummyimage.com/600x450/e2231a/ffffff&text=JDPhone+Pro', 4999.00, 78, 12, 'APPROVED', 'ON', NULL),
-(2, 1, 2, 'JDBook Air 14', '轻薄办公本，适合学生课程项目展示', 'https://dummyimage.com/600x450/2563eb/ffffff&text=JDBook+Air', 5999.00, 44, 8, 'APPROVED', 'ON', NULL),
-(3, 1, 3, 'JD Smart TV 65', '大屏电视，模拟家电类商品', 'https://dummyimage.com/600x450/111827/ffffff&text=JD+Smart+TV', 3299.00, 29, 16, 'APPROVED', 'ON', NULL),
+(1, 1, 1, 'JDPhone Pro 15', '高刷屏幕，长续航，适合演示下单流程', '/products/phone.png', 4999.00, 78, 12, 'APPROVED', 'ON', NULL),
+(2, 1, 2, 'JDBook Air 14', '轻薄办公本，适合学生课程项目展示', '/products/laptop.png', 5999.00, 44, 8, 'APPROVED', 'ON', NULL),
+(3, 1, 3, 'JD Smart TV 65', '大屏电视，模拟家电类商品', '/products/laptop.png', 3299.00, 29, 16, 'APPROVED', 'ON', NULL),
 (4, 1, 1, '待审核无线耳机', '商家新提交，等待管理员审核', 'https://dummyimage.com/600x450/f59e0b/ffffff&text=Pending+Earbuds', 399.00, 120, 0, 'PENDING', 'OFF', NULL),
-(5, 1, 4, '京造恒温电热水壶', '生活百货类商品，用于测试分类筛选', 'https://dummyimage.com/600x450/059669/ffffff&text=Smart+Kettle', 129.00, 160, 33, 'APPROVED', 'ON', NULL),
+(5, 1, 4, '京造恒温电热水壶', '生活百货类商品，用于测试分类筛选', '/products/kettle.png', 129.00, 160, 33, 'APPROVED', 'ON', NULL),
 (6, 1, 5, '陕西红富士苹果礼盒', '生鲜商品，测试低价和高库存场景', 'https://dummyimage.com/600x450/d97706/ffffff&text=Fresh+Apple', 59.90, 260, 82, 'APPROVED', 'ON', NULL),
 (7, 2, 1, 'Type-C 快充数据线 1.5m', '配件商家商品，适合测试多商家数据', 'https://dummyimage.com/600x450/7c3aed/ffffff&text=USB-C+Cable', 29.90, 480, 128, 'APPROVED', 'ON', NULL),
-(8, 2, 1, '主动降噪蓝牙耳机 Max', '数码配件爆款商品，库存较低', 'https://dummyimage.com/600x450/0891b2/ffffff&text=ANC+Headset', 699.00, 9, 67, 'APPROVED', 'ON', NULL),
+(8, 2, 1, '主动降噪蓝牙耳机 Max', '数码配件爆款商品，库存较低', '/products/headphones.png', 699.00, 9, 67, 'APPROVED', 'ON', NULL),
 (9, 2, 2, '机械键盘 K87', '办公外设商品，支持后续扩展评价', 'https://dummyimage.com/600x450/475569/ffffff&text=Keyboard+K87', 259.00, 70, 45, 'APPROVED', 'ON', NULL),
 (10, 2, 4, '人体工学升降支架', '办公桌面改善用品', 'https://dummyimage.com/600x450/0f766e/ffffff&text=Laptop+Stand', 169.00, 35, 21, 'APPROVED', 'ON', NULL),
 (11, 1, 3, '待审核空气净化器', '管理员后台可审核通过或驳回', 'https://dummyimage.com/600x450/64748b/ffffff&text=Pending+Air', 1299.00, 66, 0, 'PENDING', 'OFF', NULL),

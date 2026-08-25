@@ -24,7 +24,8 @@ request.interceptors.response.use(
     return body.data
   },
   (error) => {
-    ElMessage.error(error.message || '网络错误')
+    const message = error.response?.data?.message || (error.code === 'ECONNABORTED' ? '请求超时，请稍后重试' : '服务暂不可用，请确认后端服务已启动')
+    ElMessage.error(message)
     return Promise.reject(error)
   }
 )

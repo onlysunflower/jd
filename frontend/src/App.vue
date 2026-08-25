@@ -3,7 +3,10 @@
     <el-header class="topbar">
       <div class="brand" @click="$router.push('/')">
         <span class="brand-mark">JD</span>
-        <span>核心业务复刻系统</span>
+        <span class="brand-copy">
+          <strong>京东精选商城</strong>
+          <small>品质好物，安心选购</small>
+        </span>
       </div>
       <el-menu mode="horizontal" router :ellipsis="false" class="nav">
         <el-menu-item index="/">商品</el-menu-item>
@@ -15,7 +18,7 @@
       <div class="account">
         <template v-if="store.user">
           <el-tag>{{ roleLabel(store.user.role) }}</el-tag>
-          <span>{{ store.user.nickname || store.user.username }}</span>
+          <span class="account-name">{{ store.user.nickname || store.user.username }}</span>
           <el-button text @click="logout">退出</el-button>
         </template>
         <el-button v-else type="primary" @click="$router.push('/login')">登录</el-button>
