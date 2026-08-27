@@ -50,6 +50,11 @@ public class OrderService {
                 .orderByDesc(OrderInfo::getCreatedAt));
     }
 
+    public OrderInfo myOrder(Long id) {
+        AuthUser user = RoleGuard.requireRole(Constants.ROLE_USER);
+        return ownedOrder(id, user.getUserId());
+    }
+
     public List<OrderInfo> merchantOrders() {
         AuthUser user = RoleGuard.requireRole(Constants.ROLE_MERCHANT, Constants.ROLE_SUPER_ADMIN);
         LambdaQueryWrapper<OrderInfo> query = new LambdaQueryWrapper<OrderInfo>().orderByDesc(OrderInfo::getCreatedAt);
@@ -60,6 +65,8 @@ public class OrderService {
     }
 
     public List<OrderItem> items(Long orderId) {
+        AuthUser user = RoleGuard.requireRole(Constants.ROLE_USER);
+        ownedOrder(orderId, user.getUserId());
         return orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, orderId));
     }
 
@@ -104,33 +111,28 @@ public class OrderService {
         if (!Constants.ORDER_WAIT_PAY.equals(order.getStatus())) {
             throw new BizException("当前订单状态不能支付");
         }
-        OrderItem item = items(order.getId()).get(0);
-        Product product = productMapper.selectById(item.getProductId());
-        if (product.getStock() < item.getQuantity()) {
+        LocalDateTime paidAt = LocalDateTime.now();
+        if (orderInfoMapper.markPaidIfWaiting(order.getId(), paidAt) == 0) {
+            throw new BizException("当前订单状态不能支付");
+        }
+        List<OrderItem> orderItems = items(order.getId());
+        if (orderItems.isEmpty()) {
+            throw new BizException("订单商品明细不存在，无法支付");
+        }
+        OrderItem item = orderItems.get(0);
+        if (productMapper.deductStockAndIncreaseSales(item.getProductId(), item.getQuantity()) == 0) {
             throw new BizException("商品库存不足，无法支付");
         }
-        product.setStock(product.getStock() - item.getQuantity());
-        product.setSales(product.getSales() + item.getQuantity());
-        product.setUpdatedAt(LocalDateTime.now());
-        productMapper.updateById(product);
-
         order.setStatus(Constants.ORDER_WAIT_SHIP);
-        order.setPaidAt(LocalDateTime.now());
-        orderInfoMapper.updateById(order);
+        order.setPaidAt(paidAt);
         logService.log("ORDER", "PAY", "模拟支付订单：" + order.getOrderNo());
         return order;
     }
 
     public OrderInfo cancel(Long id) {
-        AuthUser user = RoleGuard.requireRole(Constants.ROLE_USER, Constants.ROLE_SERVICE_ADMIN, Constants.ROLE_SUPER_ADMIN);
-        OrderInfo order = orderInfoMapper.selectById(id);
-        if (order == null) {
-            throw new BizException("订单不存在");
-        }
-        if (Constants.ROLE_USER.equals(user.getRole()) && !order.getUserId().equals(user.getUserId())) {
-            throw new BizException(403, "不能取消其他用户的订单");
-        }
-        if (!Constants.ORDER_WAIT_PAY.equals(order.getStatus()) && !Constants.ORDER_WAIT_SHIP.equals(order.getStatus())) {
+        AuthUser user = RoleGuard.requireRole(Constants.ROLE_USER);
+        OrderInfo order = ownedOrder(id, user.getUserId());
+        if (!Constants.ORDER_WAIT_PAY.equals(order.getStatus())) {
             throw new BizException("当前订单状态不能取消");
         }
         order.setStatus(Constants.ORDER_CANCELED);

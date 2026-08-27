@@ -50,6 +50,7 @@ export const cartApi = {
 
 export const orderApi = {
   list: () => request.get('/orders'),
+  detail: (id) => request.get(`/orders/${id}`),
   create: (data) => request.post('/orders', data),
   pay: (id) => request.post(`/orders/${id}/pay`),
   cancel: (id) => request.post(`/orders/${id}/cancel`),

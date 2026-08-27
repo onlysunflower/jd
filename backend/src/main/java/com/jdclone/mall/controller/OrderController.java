@@ -28,6 +28,11 @@ public class OrderController {
         return ApiResponse.ok(orderService.myOrders());
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<OrderInfo> detail(@PathVariable Long id) {
+        return ApiResponse.ok(orderService.myOrder(id));
+    }
+
     @GetMapping("/{id}/items")
     public ApiResponse<List<OrderItem>> items(@PathVariable Long id) {
         return ApiResponse.ok(orderService.items(id));

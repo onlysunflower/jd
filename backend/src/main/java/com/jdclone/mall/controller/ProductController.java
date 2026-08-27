@@ -31,7 +31,7 @@ public class ProductController {
 
     @GetMapping("/{id}")
     public ApiResponse<Product> detail(@PathVariable Long id) {
-        return ApiResponse.ok(productService.detail(id));
+        return ApiResponse.ok(productService.publicDetail(id));
     }
 
     @GetMapping("/{id}/reviews")
