@@ -50,6 +50,7 @@ export const cartApi = {
 
 export const orderApi = {
   list: () => request.get('/orders'),
+  detail: (id) => request.get(`/orders/${id}`),
   create: (data) => request.post('/orders', data),
   pay: (id) => request.post(`/orders/${id}/pay`),
   cancel: (id) => request.post(`/orders/${id}/cancel`),
@@ -66,7 +67,8 @@ export const refundApi = {
 }
 
 export const reviewApi = {
-  create: (data) => request.post('/reviews', data)
+  create: (data) => request.post('/reviews', data),
+  tasks: () => request.get('/reviews/tasks')
 }
 
 export const merchantApi = {

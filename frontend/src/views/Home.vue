@@ -55,7 +55,7 @@
           <div class="product-meta"><el-tag size="small" effect="plain" :type="stockType(product.stock)">{{ categoryName(product.categoryId) }}</el-tag><span class="stock-label" :class="stockClass(product.stock)">{{ stockText(product.stock) }}</span></div>
           <h3><button class="product-title-link" @click="openDetail(product)">{{ product.name }}</button></h3>
           <p class="product-subtitle">{{ product.subtitle || '品质好物，值得入手' }}</p>
-          <div class="product-price-row"><span class="price"><em>¥</em>{{ product.price }}</span><span class="sales-label">已售 {{ product.sales || 0 }}</span></div>
+          <div class="product-price-row"><span class="price"><em>¥</em>{{ product.price }}</span><button class="product-review-link" @click="showReviews(product)"><el-icon><ChatDotRound /></el-icon>查看评价</button><span class="sales-label">已售 {{ product.sales || 0 }}</span></div>
           <div class="quantity-row">
             <span>库存 {{ product.stock }}</span>
             <el-input-number v-model="quantities[product.id]" :min="1" :max="Math.max(1, product.stock)" size="small" :disabled="!product.stock" />
@@ -65,6 +65,7 @@
       </div>
     </div>
     <div v-else class="empty-state"><el-empty :description="loadError ? '商品加载失败' : '暂未找到匹配商品'" :image-size="112" /><p class="empty-state__copy">{{ loadError ? '请启动 MySQL、导入数据库脚本并运行后端服务后重试。' : '试试调整关键词或浏览其他商品分类。' }}</p><div style="text-align:center"><el-button type="primary" plain @click="loadError ? load() : clearFilters()">{{ loadError ? '重新加载' : '查看全部商品' }}</el-button></div></div>
+    <ProductReviewsDialog v-model="reviewsVisible" :product="selectedProduct" />
   </div>
 </template>
 
@@ -72,7 +73,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { CreditCard, Refresh, Search, ShoppingCart } from '@element-plus/icons-vue'
+import { ChatDotRound, CreditCard, Refresh, Search, ShoppingCart } from '@element-plus/icons-vue'
+import ProductReviewsDialog from '../components/ProductReviewsDialog.vue'
 import { cartApi, productApi } from '../api'
 import { hasRole } from '../store'
 import { productImage } from '../productVisuals'
@@ -83,6 +85,8 @@ const categoryId = ref('')
 const products = ref([])
 const loading = ref(false)
 const loadError = ref(false)
+const reviewsVisible = ref(false)
+const selectedProduct = ref(null)
 const quantities = reactive({})
 const placeholder = 'https://dummyimage.com/600x450/f3f4f6/6b7280&text=JD+Product'
 
@@ -115,6 +119,7 @@ function selectCategory(value) { categoryId.value = value; load() }
 function clearFilters() { keyword.value = ''; categoryId.value = ''; load() }
 function handleImageError(event) { event.target.src = placeholder }
 function openDetail(product) { router.push(`/products/${product.id}`) }
+function showReviews(product) { selectedProduct.value = product; reviewsVisible.value = true }
 
 function categoryName(id) {
   return categories.find((item) => item.value === id)?.label || '精选'

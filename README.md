@@ -276,6 +276,7 @@ POST   /api/auth/login
 POST   /api/auth/register
 GET    /api/products
 GET    /api/products/{id}
+GET    /api/products/{id}/reviews
 POST   /api/cart/items
 PUT    /api/cart/items/{id}
 DELETE /api/cart/items/{id}
@@ -287,6 +288,7 @@ POST   /api/orders/{id}/cancel
 POST   /api/orders/{id}/confirm
 POST   /api/refunds
 GET    /api/refunds/{id}
+GET    /api/reviews/tasks
 POST   /api/reviews
 ```
 
@@ -333,7 +335,7 @@ GET    /api/admin/logs
 - 订单详情页
 - 退款申请页
 - 售后详情页
-- 评价页
+- 售后与评价页（待评价、已评价、商品评价弹窗）
 - 收货地址管理页
 
 ### 商家端页面

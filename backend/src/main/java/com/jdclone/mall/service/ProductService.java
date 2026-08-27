@@ -36,7 +36,16 @@ public class ProductService {
         return productMapper.selectList(query);
     }
 
-    public Product detail(Long id) {
+    public Product publicDetail(Long id) {
+        Product product = productMapper.selectById(id);
+        if (product == null || !Constants.PRODUCT_APPROVED.equals(product.getAuditStatus())
+                || !Constants.SHELF_ON.equals(product.getShelfStatus())) {
+            throw new BizException("商品不存在或不可购买");
+        }
+        return product;
+    }
+
+    private Product findByIdOrThrow(Long id) {
         Product product = productMapper.selectById(id);
         if (product == null) {
             throw new BizException("商品不存在");
@@ -106,7 +115,7 @@ public class ProductService {
 
     public Product approve(Long id) {
         RoleGuard.requireRole(Constants.ROLE_PRODUCT_ADMIN, Constants.ROLE_SUPER_ADMIN);
-        Product product = detail(id);
+        Product product = findByIdOrThrow(id);
         product.setAuditStatus(Constants.PRODUCT_APPROVED);
         product.setShelfStatus(Constants.SHELF_ON);
         product.setRejectReason(null);
@@ -118,7 +127,7 @@ public class ProductService {
 
     public Product reject(Long id, String reason) {
         RoleGuard.requireRole(Constants.ROLE_PRODUCT_ADMIN, Constants.ROLE_SUPER_ADMIN);
-        Product product = detail(id);
+        Product product = findByIdOrThrow(id);
         product.setAuditStatus(Constants.PRODUCT_REJECTED);
         product.setShelfStatus(Constants.SHELF_OFF);
         product.setRejectReason(reason);
@@ -130,7 +139,7 @@ public class ProductService {
 
     public Product offShelf(Long id) {
         AuthUser user = RoleGuard.requireRole(Constants.ROLE_MERCHANT, Constants.ROLE_PRODUCT_ADMIN, Constants.ROLE_SUPER_ADMIN);
-        Product product = detail(id);
+        Product product = findByIdOrThrow(id);
         if (Constants.ROLE_MERCHANT.equals(user.getRole()) && !product.getMerchantId().equals(user.getMerchantId())) {
             throw new BizException(403, "不能下架其他商家的商品");
         }

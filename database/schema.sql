@@ -158,7 +158,8 @@ CREATE TABLE review (
   rating INT NOT NULL,
   content VARCHAR(500),
   reply VARCHAR(500),
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_order_product (order_id, product_id)
 );
 
 CREATE TABLE operation_log (
