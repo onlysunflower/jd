@@ -10,6 +10,7 @@
       </div>
       <el-menu mode="horizontal" router :ellipsis="false" class="nav">
         <el-menu-item index="/">商品</el-menu-item>
+        <el-menu-item v-if="hasRole('USER')" index="/cart">购物车</el-menu-item>
         <el-menu-item v-if="hasRole('USER')" index="/orders">我的订单</el-menu-item>
         <el-menu-item v-if="hasRole('USER')" index="/refunds">我的售后</el-menu-item>
         <el-menu-item v-if="hasRole('MERCHANT', 'SUPER_ADMIN')" index="/merchant">商家后台</el-menu-item>

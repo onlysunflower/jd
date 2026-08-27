@@ -2,6 +2,7 @@ package com.jdclone.mall.controller;
 
 import com.jdclone.mall.common.ApiResponse;
 import com.jdclone.mall.dto.CartAddRequest;
+import com.jdclone.mall.dto.CartItemDetail;
 import com.jdclone.mall.entity.CartItem;
 import com.jdclone.mall.service.CartService;
 import jakarta.validation.Valid;
@@ -26,7 +27,7 @@ public class CartController {
     }
 
     @GetMapping
-    public ApiResponse<List<CartItem>> list() {
+    public ApiResponse<List<CartItemDetail>> list() {
         return ApiResponse.ok(cartService.list());
     }
 
@@ -36,7 +37,7 @@ public class CartController {
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<CartItem> update(@PathVariable Long id, @RequestParam Integer quantity) {
+    public ApiResponse<CartItemDetail> update(@PathVariable Long id, @RequestParam Integer quantity) {
         return ApiResponse.ok(cartService.updateQuantity(id, quantity));
     }
 

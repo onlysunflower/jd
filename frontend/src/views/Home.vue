@@ -73,7 +73,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { CreditCard, Refresh, Search, ShoppingCart } from '@element-plus/icons-vue'
-import { cartApi, orderApi, productApi } from '../api'
+import { cartApi, productApi } from '../api'
 import { hasRole } from '../store'
 import { productImage } from '../productVisuals'
 
@@ -148,17 +148,9 @@ async function addCart(product) {
   ElMessage.success('已加入购物车')
 }
 
-async function buy(product) {
+function buy(product) {
   if (!ensureUser()) return
-  const order = await orderApi.create({
-    productId: product.id,
-    quantity: quantities[product.id],
-    receiver: '演示用户',
-    receiverPhone: '13800000000',
-    receiverAddress: '北京市朝阳区京东课程项目演示地址'
-  })
-  ElMessage.success(`订单已创建：${order.orderNo}`)
-  router.push('/orders')
+  router.push({ path: '/checkout', query: { productId: product.id, quantity: quantities[product.id], source: 'direct' } })
 }
 
 onMounted(load)
