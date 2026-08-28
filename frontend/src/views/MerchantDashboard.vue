@@ -7,7 +7,7 @@
       </div>
       <el-space>
         <el-button :icon="Refresh" @click="load">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="productVisible = true">发布商品</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreateProduct">发布商品</el-button>
       </el-space>
     </div>
 
@@ -54,13 +54,20 @@
               <el-tag :type="auditType(row.auditStatus)">{{ auditText(row.auditStatus) }}</el-tag>
             </template>
           </el-table-column>
+          <el-table-column prop="rejectReason" label="驳回原因" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.auditStatus === 'REJECTED' ? (row.rejectReason || '—') : '—' }}
+            </template>
+          </el-table-column>
           <el-table-column label="上下架" width="100">
             <template #default="{ row }">
               <el-tag :type="row.shelfStatus === 'ON' ? 'success' : 'info'">{{ row.shelfStatus === 'ON' ? '上架' : '下架' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120">
+          <el-table-column label="操作" width="220">
             <template #default="{ row }">
+              <el-button v-if="row.auditStatus === 'REJECTED' || row.auditStatus === 'PENDING'" link type="primary" :icon="Edit" @click="editProduct(row)">编辑</el-button>
+              <el-button v-if="row.auditStatus === 'APPROVED' && row.shelfStatus === 'OFF'" link type="success" :icon="Top" @click="onShelf(row)">上架</el-button>
               <el-button link type="danger" :icon="Close" @click="offShelf(row)">下架</el-button>
             </template>
           </el-table-column>
@@ -110,26 +117,22 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="productVisible" title="发布商品" width="580px">
-      <el-form :model="productForm" label-width="86px">
-        <el-form-item label="商品名称"><el-input v-model="productForm.name" /></el-form-item>
-        <el-form-item label="副标题"><el-input v-model="productForm.subtitle" /></el-form-item>
-        <el-form-item label="图片地址"><el-input v-model="productForm.mainImage" /></el-form-item>
-        <el-form-item label="分类">
-          <el-select v-model="productForm.categoryId" style="width: 100%">
-            <el-option label="手机数码" :value="1" />
-            <el-option label="电脑办公" :value="2" />
-            <el-option label="家用电器" :value="3" />
-            <el-option label="生活百货" :value="4" />
-            <el-option label="生鲜食品" :value="5" />
+    <el-dialog v-model="productVisible" :title="editingProductId ? '编辑商品' : '发布商品'" width="580px" @open="loadCategories">
+      <el-form ref="productFormRef" :model="productForm" :rules="productRules" label-width="86px">
+        <el-form-item label="商品名称" prop="name"><el-input v-model="productForm.name" /></el-form-item>
+        <el-form-item label="副标题" prop="subtitle"><el-input v-model="productForm.subtitle" /></el-form-item>
+        <el-form-item label="图片地址" prop="mainImage"><el-input v-model="productForm.mainImage" placeholder="请输入以 http:// 或 https:// 开头的图片地址" /></el-form-item>
+        <el-form-item label="分类" prop="categoryId">
+          <el-select v-model="productForm.categoryId" style="width: 100%" :placeholder="categories.length ? '请选择分类' : '暂无可用分类'">
+            <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="价格"><el-input-number v-model="productForm.price" :min="0" /></el-form-item>
-        <el-form-item label="库存"><el-input-number v-model="productForm.stock" :min="0" /></el-form-item>
+        <el-form-item label="价格" prop="price"><el-input-number v-model="productForm.price" :min="0" :precision="2" /></el-form-item>
+        <el-form-item label="库存" prop="stock"><el-input-number v-model="productForm.stock" :min="0" :precision="0" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="productVisible = false">取消</el-button>
-        <el-button type="primary" @click="createProduct">提交审核</el-button>
+        <el-button type="primary" :loading="productSubmitting" @click="submitProduct">{{ editingProductId ? '重新提交审核' : '提交审核' }}</el-button>
       </template>
     </el-dialog>
 
@@ -169,16 +172,20 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Close, Money, Plus, Refresh, Van } from '@element-plus/icons-vue'
+import { Check, Close, Edit, Money, Plus, Refresh, Top, Van } from '@element-plus/icons-vue'
 import { merchantApi } from '../api'
 
 const tab = ref('products')
 const products = ref([])
 const orders = ref([])
 const refunds = ref([])
+const categories = ref([])
 const productVisible = ref(false)
 const shipVisible = ref(false)
 const currentOrder = ref(null)
+const editingProductId = ref(null)
+const productFormRef = ref(null)
+const productSubmitting = ref(false)
 const placeholder = 'https://dummyimage.com/120x90/f3f4f6/6b7280&text=JD'
 const productForm = reactive({
   categoryId: 1,
@@ -188,6 +195,27 @@ const productForm = reactive({
   price: 99,
   stock: 100
 })
+const productRules = {
+  name: [
+    { required: true, message: '请输入商品名称', trigger: 'blur' },
+    { min: 2, max: 60, message: '商品名称长度需在 2~60 之间', trigger: 'blur' }
+  ],
+  mainImage: [
+    { required: true, message: '请输入图片地址', trigger: 'blur' },
+    { pattern: /^https?:\/\/.+/, message: '图片地址需以 http:// 或 https:// 开头', trigger: 'blur' }
+  ],
+  categoryId: [
+    { required: true, message: '请选择分类', trigger: 'change' }
+  ],
+  price: [
+    { required: true, message: '请输入价格', trigger: 'blur' },
+    { type: 'number', message: '价格必须是数字', trigger: 'blur' }
+  ],
+  stock: [
+    { required: true, message: '请输入库存', trigger: 'blur' },
+    { type: 'number', min: 0, message: '库存必须为非负整数', trigger: 'blur' }
+  ]
+}
 const shipForm = reactive({
   logisticsCompany: '京东快递',
   logisticsNo: ''
@@ -251,16 +279,82 @@ async function load() {
   refunds.value = await merchantApi.refunds()
 }
 
-async function createProduct() {
-  await merchantApi.createProduct(productForm)
-  ElMessage.success('商品已提交审核')
-  productVisible.value = false
-  load()
+function openCreateProduct() {
+  editingProductId.value = null
+  productForm.categoryId = 1
+  productForm.name = ''
+  productForm.subtitle = ''
+  productForm.mainImage = ''
+  productForm.price = 99
+  productForm.stock = 100
+  productVisible.value = true
+  clearProductValidate()
+}
+
+function editProduct(row) {
+  editingProductId.value = row.id
+  productForm.categoryId = row.categoryId
+  productForm.name = row.name
+  productForm.subtitle = row.subtitle || ''
+  productForm.mainImage = row.mainImage || ''
+  productForm.price = row.price
+  productForm.stock = row.stock
+  productVisible.value = true
+  clearProductValidate()
+}
+
+function clearProductValidate() {
+  if (productFormRef.value) {
+    productFormRef.value.clearValidate()
+  }
+}
+
+async function loadCategories() {
+  try {
+    categories.value = await merchantApi.categories()
+    if (!categories.value.length) {
+      ElMessage.warning('暂无可用分类，请联系管理员')
+    }
+  } catch (e) {
+    categories.value = []
+  }
+}
+
+async function submitProduct() {
+  if (!categories.value.length) {
+    ElMessage.warning('暂无可用分类，请联系管理员')
+    return
+  }
+  try {
+    await productFormRef.value.validate()
+  } catch (e) {
+    return
+  }
+  productSubmitting.value = true
+  try {
+    if (editingProductId.value) {
+      await merchantApi.updateProduct(editingProductId.value, productForm)
+      ElMessage.success('商品已重新提交审核')
+    } else {
+      await merchantApi.createProduct(productForm)
+      ElMessage.success('商品已提交审核')
+    }
+    productVisible.value = false
+    load()
+  } finally {
+    productSubmitting.value = false
+  }
 }
 
 async function offShelf(row) {
   await merchantApi.offShelf(row.id)
   ElMessage.success('商品已下架')
+  load()
+}
+
+async function onShelf(row) {
+  await merchantApi.onShelf(row.id)
+  ElMessage.success('商品已上架')
   load()
 }
 

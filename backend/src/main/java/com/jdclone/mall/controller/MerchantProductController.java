@@ -1,8 +1,11 @@
 package com.jdclone.mall.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jdclone.mall.common.ApiResponse;
 import com.jdclone.mall.dto.ProductRequest;
+import com.jdclone.mall.entity.Category;
 import com.jdclone.mall.entity.Product;
+import com.jdclone.mall.mapper.CategoryMapper;
 import com.jdclone.mall.service.ProductService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -15,15 +18,23 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/merchant/products")
+@RequestMapping("/api/merchant")
 public class MerchantProductController {
     private final ProductService productService;
+    private final CategoryMapper categoryMapper;
 
-    public MerchantProductController(ProductService productService) {
+    public MerchantProductController(ProductService productService, CategoryMapper categoryMapper) {
         this.productService = productService;
+        this.categoryMapper = categoryMapper;
     }
 
-    @GetMapping
+    @GetMapping("/categories")
+    public ApiResponse<List<Category>> categories() {
+        return ApiResponse.ok(categoryMapper.selectList(new LambdaQueryWrapper<Category>()
+                .orderByAsc(Category::getSortOrder).orderByAsc(Category::getId)));
+    }
+
+    @GetMapping("/products")
     public ApiResponse<List<Product>> list() {
         return ApiResponse.ok(productService.listForMerchant());
     }
@@ -41,5 +52,10 @@ public class MerchantProductController {
     @PostMapping("/{id}/off-shelf")
     public ApiResponse<Product> offShelf(@PathVariable Long id) {
         return ApiResponse.ok(productService.offShelf(id));
+    }
+
+    @PostMapping("/{id}/on-shelf")
+    public ApiResponse<Product> onShelf(@PathVariable Long id) {
+        return ApiResponse.ok(productService.onShelf(id));
     }
 }
