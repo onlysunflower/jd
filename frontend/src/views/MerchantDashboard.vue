@@ -75,18 +75,40 @@
       </el-tab-pane>
 
       <el-tab-pane label="订单发货" name="orders">
-        <el-table :data="orders" empty-text="暂无订单">
-          <el-table-column prop="orderNo" label="订单号" min-width="180" />
-          <el-table-column label="金额" width="110">
+        <el-radio-group v-model="orderFilter" style="margin-bottom: 14px">
+          <el-radio-button label="全部" value="ALL" />
+          <el-radio-button label="待发货" value="WAIT_SHIP" />
+          <el-radio-button label="待收货" value="WAIT_RECEIVE" />
+          <el-radio-button label="已完成" value="COMPLETED" />
+        </el-radio-group>
+        <el-table :data="filteredOrders" empty-text="暂无订单">
+          <el-table-column prop="orderNo" label="订单号" min-width="175" />
+          <el-table-column label="商品明细" min-width="280">
+            <template #default="{ row }">
+              <div v-for="item in row.items" :key="item.id" class="order-item-cell">
+                <img :src="item.productImage || placeholder" alt="商品图" />
+                <span class="order-item-name">{{ item.productName }}</span>
+                <span class="muted">￥{{ item.price }} × {{ item.quantity }}</span>
+              </div>
+              <span v-if="!row.items || !row.items.length" class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="金额" width="100">
             <template #default="{ row }">￥{{ row.totalAmount }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="130">
+          <el-table-column label="状态" width="120">
             <template #default="{ row }">
               <el-tag :type="orderType(row.status)">{{ orderText(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="receiverAddress" label="收货地址" min-width="240" show-overflow-tooltip />
-          <el-table-column label="操作" width="160">
+          <el-table-column label="收货人及电话" min-width="180">
+            <template #default="{ row }">
+              <div>{{ row.receiver }}</div>
+              <div class="muted">{{ row.receiverPhone }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="receiverAddress" label="收货地址" min-width="200" show-overflow-tooltip />
+          <el-table-column label="操作" width="100" fixed="right">
             <template #default="{ row }">
               <el-button v-if="row.status === 'WAIT_SHIP'" link type="primary" :icon="Van" @click="ship(row)">发货</el-button>
             </template>
@@ -96,20 +118,34 @@
 
       <el-tab-pane label="售后处理" name="refunds">
         <el-table :data="refunds" empty-text="暂无售后">
-          <el-table-column prop="id" label="售后单" width="90" />
-          <el-table-column prop="orderId" label="订单" width="90" />
-          <el-table-column prop="reason" label="原因" min-width="220" show-overflow-tooltip />
-          <el-table-column label="状态" width="170">
+          <el-table-column prop="id" label="售后单" width="80" />
+          <el-table-column prop="orderId" label="订单" width="80" />
+          <el-table-column label="类型" width="100">
+            <template #default="{ row }">{{ refundTypeText(row.type) }}</template>
+          </el-table-column>
+          <el-table-column prop="reason" label="原因" min-width="160" show-overflow-tooltip />
+          <el-table-column label="金额" width="100">
+            <template #default="{ row }">￥{{ row.amount }}</template>
+          </el-table-column>
+          <el-table-column label="申请时间" width="170">
+            <template #default="{ row }">
+              <span class="muted">{{ row.createdAt }}</span>
+              <div v-if="row.status === 'WAIT_MERCHANT_RECEIVE' && row.returnLogisticsNo" class="muted">退货单号：{{ row.returnLogisticsNo }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="140">
             <template #default="{ row }">
               <el-tag :type="refundType(row.status)">{{ refundText(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="300" fixed="right">
+          <el-table-column label="操作" width="320" fixed="right">
             <template #default="{ row }">
               <div class="compact-actions">
-                <el-button v-if="row.status === 'MERCHANT_REVIEWING'" link type="primary" :icon="Check" @click="approveRefund(row)">同意</el-button>
+                <span v-if="row.status === 'PLATFORM_INTERVENING' || row.status === 'REFUND_SUCCESS' || row.status === 'REFUND_FAILED'" class="platform-tag">{{ refundText(row.status) }}</span>
+                <el-button v-else-if="row.status === 'MERCHANT_REVIEWING'" link type="primary" :icon="Check" @click="approveRefund(row)">同意</el-button>
                 <el-button v-if="row.status === 'MERCHANT_REVIEWING'" link type="danger" :icon="Close" @click="rejectRefund(row)">拒绝</el-button>
-                <el-button v-if="row.status === 'WAIT_MERCHANT_RECEIVE'" link type="primary" :icon="Money" @click="confirmReturn(row)">确认退款</el-button>
+                <el-button v-else-if="row.status === 'WAIT_MERCHANT_RECEIVE'" link type="primary" :icon="Money" @click="confirmReturn(row)">确认退款</el-button>
+                <el-button link type="info" :icon="Tickets" @click="showRefundDetail(row)">详情</el-button>
               </div>
             </template>
           </el-table-column>
@@ -136,7 +172,28 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="shipVisible" title="订单发货" width="500px">
+    <el-dialog v-model="shipVisible" title="订单发货" width="560px">
+      <div v-if="currentOrder" class="ship-preview">
+        <div class="ship-preview-title">订单信息核对</div>
+        <div class="ship-preview-row">
+          <span>收货人：</span><strong>{{ currentOrder.receiver || '—' }}</strong>
+        </div>
+        <div class="ship-preview-row">
+          <span>收货电话：</span><strong>{{ currentOrder.receiverPhone || '—' }}</strong>
+        </div>
+        <div class="ship-preview-row">
+          <span>收货地址：</span><strong class="ship-preview-addr">{{ currentOrder.receiverAddress || '—' }}</strong>
+        </div>
+        <div class="ship-preview-row">
+          <span>商品明细：</span>
+          <span v-if="!currentOrder.items || !currentOrder.items.length">—</span>
+          <span v-else class="ship-preview-items">
+            <span v-for="(item, i) in currentOrder.items" :key="item.id">
+              {{ item.productName }} × {{ item.quantity }}<template v-if="i < currentOrder.items.length - 1">；</template>
+            </span>
+          </span>
+        </div>
+      </div>
       <el-alert
         title="课程项目中使用模拟物流单号。真实业务里单号通常由京东物流、快递鸟、顺丰等物流系统创建运单后返回。"
         type="info"
@@ -166,19 +223,58 @@
         <el-button type="primary" @click="submitShip">确认发货</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="refundDetailVisible" title="售后详情" width="560px">
+      <template v-if="currentRefund">
+        <div class="refund-detail-grid">
+          <div><span class="muted">售后单</span><b>#{{ currentRefund.id }}</b></div>
+          <div><span class="muted">关联订单</span><b>#{{ currentRefund.orderId }}</b></div>
+          <div><span class="muted">售后类型</span><b>{{ refundTypeText(currentRefund.type) }}</b></div>
+          <div><span class="muted">退款金额</span><b>￥{{ currentRefund.amount }}</b></div>
+          <div><span class="muted">售后状态</span><b>{{ refundText(currentRefund.status) }}</b></div>
+          <div><span class="muted">申请时间</span><b>{{ currentRefund.createdAt }}</b></div>
+        </div>
+        <div class="refund-detail-section">
+          <div class="muted">申请原因</div>
+          <div>{{ currentRefund.reason || '—' }}</div>
+        </div>
+        <div class="refund-detail-section">
+          <div class="muted">商家回复</div>
+          <div>{{ currentRefund.merchantReply || '—' }}</div>
+        </div>
+        <div v-if="currentRefund.returnLogisticsNo" class="refund-detail-section">
+          <div class="muted">退货物流单号</div>
+          <div>{{ currentRefund.returnLogisticsNo }}</div>
+        </div>
+        <div class="refund-detail-section">
+          <div class="muted">售后进度时间线</div>
+          <el-timeline v-if="refundLogs.length">
+            <el-timeline-item v-for="log in refundLogs" :key="log.id" :timestamp="log.createdAt">
+              <div>{{ refundLogActionText(log.action) }}</div>
+              <div v-if="log.remark" class="muted">{{ log.remark }}</div>
+            </el-timeline-item>
+          </el-timeline>
+          <div v-else class="muted">暂无进度记录</div>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Close, Edit, Money, Plus, Refresh, Top, Van } from '@element-plus/icons-vue'
-import { merchantApi } from '../api'
+import { Check, Close, Edit, Money, Plus, Refresh, Tickets, Top, Van } from '@element-plus/icons-vue'
+import { merchantApi, refundApi } from '../api'
 
 const tab = ref('products')
 const products = ref([])
 const orders = ref([])
 const refunds = ref([])
+const orderFilter = ref('WAIT_SHIP')
+const refundDetailVisible = ref(false)
+const currentRefund = ref(null)
+const refundLogs = ref([])
 const categories = ref([])
 const productVisible = ref(false)
 const shipVisible = ref(false)
@@ -233,6 +329,11 @@ function countRefunds(status) {
   return refunds.value.filter((item) => item.status === status).length
 }
 
+const filteredOrders = computed(() => {
+  if (orderFilter.value === 'ALL') return orders.value
+  return orders.value.filter((item) => item.status === orderFilter.value)
+})
+
 function auditText(status) {
   return { PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回' }[status] || status
 }
@@ -271,6 +372,22 @@ function refundText(status) {
 
 function refundType(status) {
   return { MERCHANT_REVIEWING: 'warning', WAIT_MERCHANT_RECEIVE: 'primary', PLATFORM_INTERVENING: 'danger', REFUND_SUCCESS: 'success', REFUND_FAILED: 'info' }[status] || 'info'
+}
+
+function refundTypeText(type) {
+  return type === 'REFUND_ONLY' ? '仅退款' : '退货退款'
+}
+
+function refundLogActionText(action) {
+  return {
+    CREATE: '用户提交售后申请',
+    MERCHANT_APPROVE: '商家同意售后',
+    MERCHANT_REJECT: '商家拒绝售后',
+    USER_RETURN: '用户填写退货物流',
+    MERCHANT_CONFIRM_RETURN: '商家确认收货并退款',
+    USER_REQUEST_INTERVENTION: '用户申请平台介入',
+    ADMIN_ARBITRATE: '平台仲裁'
+  }[action] || action
 }
 
 async function load() {
@@ -377,6 +494,15 @@ function generateLogisticsNo() {
 }
 
 async function submitShip() {
+  try {
+    await ElMessageBox.confirm('确认对该订单发货？发货后不可撤销', '确认发货', {
+      type: 'warning',
+      confirmButtonText: '确认发货',
+      cancelButtonText: '取消'
+    })
+  } catch (e) {
+    return
+  }
   await merchantApi.ship(currentOrder.value.id, {
     logisticsCompany: shipForm.logisticsCompany,
     logisticsNo: shipForm.logisticsNo
@@ -387,6 +513,15 @@ async function submitShip() {
 }
 
 async function approveRefund(row) {
+  try {
+    await ElMessageBox.confirm('确认同意该售后申请？同意后等待用户退货', '同意售后', {
+      type: 'warning',
+      confirmButtonText: '同意',
+      cancelButtonText: '取消'
+    })
+  } catch (e) {
+    return
+  }
   await merchantApi.approveRefund(row.id, { remark: '商家同意售后，请寄回商品' })
   ElMessage.success('已同意售后')
   load()
@@ -400,9 +535,29 @@ async function rejectRefund(row) {
 }
 
 async function confirmReturn(row) {
+  try {
+    await ElMessageBox.confirm('确认收到退货并退款？确认后不可撤销', '确认退款', {
+      type: 'warning',
+      confirmButtonText: '确认退款',
+      cancelButtonText: '取消'
+    })
+  } catch (e) {
+    return
+  }
   await merchantApi.confirmReturn(row.id, { remark: '商家确认收到退货，退款完成' })
   ElMessage.success('退款完成')
   load()
+}
+
+async function showRefundDetail(row) {
+  currentRefund.value = row
+  refundLogs.value = []
+  refundDetailVisible.value = true
+  try {
+    refundLogs.value = await refundApi.logs(row.id)
+  } catch (e) {
+    refundLogs.value = []
+  }
 }
 
 watch(tab, load)
@@ -427,5 +582,92 @@ onMounted(load)
 .product-cell p {
   max-width: 420px;
   margin: 5px 0 0;
+}
+
+.order-item-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.order-item-cell + .order-item-cell {
+  border-top: 1px dashed var(--line);
+}
+
+.order-item-cell img {
+  width: 44px;
+  height: 36px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.order-item-name {
+  flex: 1;
+  margin-right: 8px;
+}
+
+.ship-preview {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.ship-preview-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.ship-preview-row {
+  display: flex;
+  gap: 8px;
+  line-height: 1.7;
+}
+
+.ship-preview-row > span:first-child {
+  color: var(--muted);
+  flex-shrink: 0;
+  width: 64px;
+}
+
+.ship-preview-addr {
+  word-break: break-all;
+}
+
+.refund-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.refund-detail-grid > div span {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.refund-detail-section {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.refund-detail-section > .muted {
+  margin-bottom: 4px;
+}
+
+.platform-tag {
+  color: var(--el-color-info);
+  font-size: 13px;
 }
 </style>

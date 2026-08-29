@@ -1,10 +1,12 @@
 package com.jdclone.mall.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.Data;
 
 @Data
@@ -26,4 +28,6 @@ public class OrderInfo {
     private LocalDateTime shippedAt;
     private LocalDateTime completedAt;
     private LocalDateTime createdAt;
+    @TableField(exist = false)
+    private List<OrderItem> items;
 }
