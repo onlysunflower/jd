@@ -72,10 +72,12 @@ export const reviewApi = {
 }
 
 export const merchantApi = {
+  categories: () => request.get('/merchant/categories'),
   products: () => request.get('/merchant/products'),
   createProduct: (data) => request.post('/merchant/products', data),
   updateProduct: (id, data) => request.put(`/merchant/products/${id}`, data),
   offShelf: (id) => request.post(`/merchant/products/${id}/off-shelf`),
+  onShelf: (id) => request.post(`/merchant/products/${id}/on-shelf`),
   orders: () => request.get('/merchant/orders'),
   ship: (id, data) => request.post(`/merchant/orders/${id}/ship`, data),
   refunds: () => request.get('/merchant/refunds'),

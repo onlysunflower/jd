@@ -7,7 +7,6 @@
       <section class="detail-card"><div class="order-detail-head"><div><span class="muted">订单号</span><h2>{{ order.orderNo }}</h2></div><el-tag :type="statusType(order.status)" size="large">{{ statusText(order.status) }}</el-tag></div><div class="order-detail-grid"><span>下单时间 <b>{{ order.createdAt }}</b></span><span v-if="order.paidAt">支付时间 <b>{{ order.paidAt }}</b></span><span v-if="order.shippedAt">发货时间 <b>{{ order.shippedAt }}</b></span><span v-if="order.completedAt">完成时间 <b>{{ order.completedAt }}</b></span></div></section>
       <section class="detail-card"><h3>商品信息</h3><div v-if="itemsLoading" class="skeleton-card"><el-skeleton animated :rows="4" /></div><div v-else class="order-items"><article v-for="item in items" :key="item.id" class="order-item"><img :src="item.productImage || '/products/catalog-collection.png'" :alt="item.productName" /><div><strong>{{ item.productName }}</strong><span>成交单价 ¥{{ money(item.price) }}</span></div><span>× {{ item.quantity }}</span><strong class="price small"><em>¥</em>{{ subtotal(item) }}</strong></article></div><div class="detail-total">订单总金额 <strong class="price"><em>¥</em>{{ money(order.totalAmount) }}</strong></div></section>
       <section class="detail-card"><h3>收货与物流</h3><div class="order-detail-grid"><span>收货人 <b>{{ order.receiver }}</b></span><span>手机号 <b>{{ order.receiverPhone }}</b></span><span class="wide">收货地址 <b>{{ order.receiverAddress }}</b></span><span v-if="order.logisticsNo" class="wide">物流信息 <b>{{ order.logisticsCompany || '物流公司待补充' }} · {{ order.logisticsNo }}</b></span><span v-else class="wide">物流信息 <b>待商家发货</b></span></div></section>
-      <section class="detail-actions"><el-button v-if="order.status === 'WAIT_PAY'" type="primary" :loading="processing === 'pay'" :disabled="!!processing" @click="operate('pay')">支付</el-button><el-button v-if="order.status === 'WAIT_PAY'" type="danger" plain :loading="processing === 'cancel'" :disabled="!!processing" @click="operate('cancel')">取消订单</el-button><el-button v-if="order.status === 'WAIT_RECEIVE'" type="primary" :loading="processing === 'confirm'" :disabled="!!processing" @click="operate('confirm')">确认收货</el-button><el-button v-if="order.status === 'COMPLETED'" type="primary" :icon="EditPen" @click="router.push('/refunds?tab=reviews')">评价商品</el-button></section>
     </template>
   </div>
 </template>
@@ -16,7 +15,6 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, EditPen } from '@element-plus/icons-vue'
 import { orderApi } from '../api'
 
 const route = useRoute(); const router = useRouter(); const order = ref(null); const items = ref([]); const loading = ref(true); const itemsLoading = ref(false); const errorMessage = ref(''); const processing = ref('')

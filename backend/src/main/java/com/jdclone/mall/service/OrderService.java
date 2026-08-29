@@ -61,7 +61,12 @@ public class OrderService {
         if (Constants.ROLE_MERCHANT.equals(user.getRole())) {
             query.eq(OrderInfo::getMerchantId, user.getMerchantId());
         }
-        return orderInfoMapper.selectList(query);
+        List<OrderInfo> orders = orderInfoMapper.selectList(query);
+        for (OrderInfo order : orders) {
+            order.setItems(orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
+                    .eq(OrderItem::getOrderId, order.getId())));
+        }
+        return orders;
     }
 
     public List<OrderItem> items(Long orderId) {

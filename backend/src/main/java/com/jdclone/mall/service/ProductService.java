@@ -149,4 +149,20 @@ public class ProductService {
         logService.log("PRODUCT", "OFF_SHELF", "下架商品：" + product.getName());
         return product;
     }
+
+    public Product onShelf(Long id) {
+        AuthUser user = RoleGuard.requireRole(Constants.ROLE_MERCHANT, Constants.ROLE_PRODUCT_ADMIN, Constants.ROLE_SUPER_ADMIN);
+        Product product = findByIdOrThrow(id);
+        if (Constants.ROLE_MERCHANT.equals(user.getRole()) && !product.getMerchantId().equals(user.getMerchantId())) {
+            throw new BizException(403, "不能上架其他商家的商品");
+        }
+        if (!Constants.PRODUCT_APPROVED.equals(product.getAuditStatus())) {
+            throw new BizException("只有审核通过的商品才能上架");
+        }
+        product.setShelfStatus(Constants.SHELF_ON);
+        product.setUpdatedAt(LocalDateTime.now());
+        productMapper.updateById(product);
+        logService.log("PRODUCT", "ON_SHELF", "上架商品：" + product.getName());
+        return product;
+    }
 }
