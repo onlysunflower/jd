@@ -50,7 +50,8 @@ public class RefundService {
 
     public List<RefundRequest> merchantRefunds() {
         AuthUser user = RoleGuard.requireRole(Constants.ROLE_MERCHANT, Constants.ROLE_SUPER_ADMIN);
-        LambdaQueryWrapper<RefundRequest> query = new LambdaQueryWrapper<RefundRequest>().orderByDesc(RefundRequest::getUpdatedAt);
+        LambdaQueryWrapper<RefundRequest> query =
+                new LambdaQueryWrapper<RefundRequest>().orderByDesc(RefundRequest::getUpdatedAt);
         if (Constants.ROLE_MERCHANT.equals(user.getRole())) {
             query.eq(RefundRequest::getMerchantId, user.getMerchantId());
         }
@@ -77,16 +78,20 @@ public class RefundService {
         if (order == null || !order.getUserId().equals(user.getUserId())) {
             throw new BizException("订单不存在");
         }
-        if (!Constants.ORDER_WAIT_SHIP.equals(order.getStatus()) && !Constants.ORDER_WAIT_RECEIVE.equals(order.getStatus())
+        validateRefundType(request.getType());
+        if (!Constants.ORDER_WAIT_SHIP.equals(order.getStatus())
+                && !Constants.ORDER_WAIT_RECEIVE.equals(order.getStatus())
                 && !Constants.ORDER_COMPLETED.equals(order.getStatus())) {
             throw new BizException("当前订单状态不能申请售后");
         }
+        ensureTypeMatchesOrderStatus(order.getStatus(), request.getType());
         Long exists = refundRequestMapper.selectCount(new LambdaQueryWrapper<RefundRequest>()
                 .eq(RefundRequest::getOrderId, order.getId())
                 .notIn(RefundRequest::getStatus, Constants.REFUND_FAILED, Constants.REFUND_CLOSED));
         if (exists > 0) {
             throw new BizException("该订单已有进行中的售后单");
         }
+
         RefundRequest refund = new RefundRequest();
         refund.setOrderId(order.getId());
         refund.setUserId(user.getUserId());
@@ -111,10 +116,15 @@ public class RefundService {
         if (!Constants.REFUND_REVIEWING.equals(refund.getStatus())) {
             throw new BizException("当前售后状态不能同意");
         }
-        refund.setStatus(Constants.REFUND_WAIT_RETURN);
+
+        boolean refundOnly = Constants.REFUND_TYPE_REFUND_ONLY.equals(refund.getType());
+        refund.setStatus(refundOnly ? Constants.REFUND_SUCCESS : Constants.REFUND_WAIT_RETURN);
         refund.setMerchantReply(remark);
         refund.setUpdatedAt(LocalDateTime.now());
         refundRequestMapper.updateById(refund);
+        if (refundOnly) {
+            orderService.markRefundResult(orderInfoMapper.selectById(refund.getOrderId()), true);
+        }
         addLog(id, "MERCHANT_APPROVE", remark);
         return refund;
     }
@@ -172,7 +182,8 @@ public class RefundService {
         if (refund == null || !refund.getUserId().equals(user.getUserId())) {
             throw new BizException("售后单不存在");
         }
-        if (!Constants.REFUND_REJECTED.equals(refund.getStatus()) && !Constants.REFUND_REVIEWING.equals(refund.getStatus())) {
+        if (!Constants.REFUND_REJECTED.equals(refund.getStatus())
+                && !Constants.REFUND_REVIEWING.equals(refund.getStatus())) {
             throw new BizException("当前售后状态不能申请平台介入");
         }
         refund.setStatus(Constants.REFUND_PLATFORM);
@@ -209,10 +220,31 @@ public class RefundService {
         if (refund == null) {
             throw new BizException("售后单不存在");
         }
-        if (Constants.ROLE_MERCHANT.equals(user.getRole()) && !refund.getMerchantId().equals(user.getMerchantId())) {
+        if (Constants.ROLE_MERCHANT.equals(user.getRole())
+                && !refund.getMerchantId().equals(user.getMerchantId())) {
             throw new BizException(403, "不能处理其他商家的售后单");
         }
         return refund;
+    }
+
+    private void validateRefundType(String type) {
+        if (!Constants.REFUND_TYPE_REFUND_ONLY.equals(type)
+                && !Constants.REFUND_TYPE_RETURN_AND_REFUND.equals(type)) {
+            throw new BizException("售后类型不合法");
+        }
+    }
+
+    private void ensureTypeMatchesOrderStatus(String orderStatus, String type) {
+        boolean allowed = (Constants.ORDER_WAIT_SHIP.equals(orderStatus)
+                && Constants.REFUND_TYPE_REFUND_ONLY.equals(type))
+                || (Constants.ORDER_WAIT_RECEIVE.equals(orderStatus)
+                && (Constants.REFUND_TYPE_REFUND_ONLY.equals(type)
+                || Constants.REFUND_TYPE_RETURN_AND_REFUND.equals(type)))
+                || (Constants.ORDER_COMPLETED.equals(orderStatus)
+                && Constants.REFUND_TYPE_RETURN_AND_REFUND.equals(type));
+        if (!allowed) {
+            throw new BizException("当前订单状态不支持该售后类型");
+        }
     }
 
     private void addLog(Long refundId, String action, String remark) {

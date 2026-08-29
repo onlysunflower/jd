@@ -24,6 +24,9 @@ public final class Constants {
     public static final String ORDER_REFUNDING = "REFUNDING";
     public static final String ORDER_REFUNDED = "REFUNDED";
 
+    public static final String REFUND_TYPE_REFUND_ONLY = "REFUND_ONLY";
+    public static final String REFUND_TYPE_RETURN_AND_REFUND = "RETURN_AND_REFUND";
+
     public static final String REFUND_REVIEWING = "MERCHANT_REVIEWING";
     public static final String REFUND_APPROVED = "MERCHANT_APPROVED";
     public static final String REFUND_REJECTED = "MERCHANT_REJECTED";

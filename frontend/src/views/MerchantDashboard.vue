@@ -513,8 +513,11 @@ async function submitShip() {
 }
 
 async function approveRefund(row) {
+  const refundOnly = row.type === 'REFUND_ONLY'
+  const confirmMessage = refundOnly ? '确认同意该仅退款申请？同意后将直接完成模拟退款' : '确认同意该售后申请？同意后等待用户退货'
+  const remark = refundOnly ? '商家同意仅退款，退款完成' : '商家同意售后，请寄回商品'
   try {
-    await ElMessageBox.confirm('确认同意该售后申请？同意后等待用户退货', '同意售后', {
+    await ElMessageBox.confirm(confirmMessage, '同意售后', {
       type: 'warning',
       confirmButtonText: '同意',
       cancelButtonText: '取消'
@@ -522,7 +525,7 @@ async function approveRefund(row) {
   } catch (e) {
     return
   }
-  await merchantApi.approveRefund(row.id, { remark: '商家同意售后，请寄回商品' })
+  await merchantApi.approveRefund(row.id, { remark })
   ElMessage.success('已同意售后')
   load()
 }
