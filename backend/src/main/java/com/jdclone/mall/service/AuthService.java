@@ -54,6 +54,10 @@ public class AuthService {
             throw new BizException(403, "账号不可用");
         }
         Merchant merchant = merchantMapper.selectOne(new LambdaQueryWrapper<Merchant>().eq(Merchant::getUserId, user.getId()));
+        if (Constants.ROLE_MERCHANT.equals(user.getRole())
+                && (merchant == null || !Constants.MERCHANT_APPROVED.equals(merchant.getStatus()))) {
+            throw new BizException(403, "商家账号未通过审核或已被冻结");
+        }
         Long merchantId = merchant == null ? null : merchant.getId();
         String token = tokenService.create(new AuthUser(user.getId(), user.getUsername(), user.getRole(), merchantId));
         user.setPassword(null);

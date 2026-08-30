@@ -1,8 +1,8 @@
 package com.jdclone.mall.controller;
 
 import com.jdclone.mall.common.ApiResponse;
+import com.jdclone.mall.dto.ProductReviewDetail;
 import com.jdclone.mall.entity.Product;
-import com.jdclone.mall.entity.Review;
 import com.jdclone.mall.service.ProductService;
 import com.jdclone.mall.service.ReviewService;
 import java.util.List;
@@ -35,7 +35,7 @@ public class ProductController {
     }
 
     @GetMapping("/{id}/reviews")
-    public ApiResponse<List<Review>> reviews(@PathVariable Long id) {
+    public ApiResponse<List<ProductReviewDetail>> reviews(@PathVariable Long id) {
         return ApiResponse.ok(reviewService.listByProduct(id));
     }
 }

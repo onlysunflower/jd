@@ -11,6 +11,8 @@ import lombok.Data;
 public class OrderCreateRequest {
     @NotNull(message = "商品不能为空")
     private Long productId;
+    private Long skuId;
+    private Long couponId;
     @NotNull(message = "购买数量不能为空")
     @Min(value = 1, message = "购买数量必须为正整数")
     private Integer quantity;

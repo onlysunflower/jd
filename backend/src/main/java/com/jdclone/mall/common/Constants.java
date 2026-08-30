@@ -15,6 +15,10 @@ public final class Constants {
     public static final String PRODUCT_REJECTED = "REJECTED";
     public static final String SHELF_ON = "ON";
     public static final String SHELF_OFF = "OFF";
+    public static final String MERCHANT_PENDING = "PENDING";
+    public static final String MERCHANT_APPROVED = "APPROVED";
+    public static final String MERCHANT_REJECTED = "REJECTED";
+    public static final String MERCHANT_FROZEN = "FROZEN";
 
     public static final String ORDER_WAIT_PAY = "WAIT_PAY";
     public static final String ORDER_WAIT_SHIP = "WAIT_SHIP";
@@ -36,4 +40,18 @@ public final class Constants {
     public static final String REFUND_SUCCESS = "REFUND_SUCCESS";
     public static final String REFUND_FAILED = "REFUND_FAILED";
     public static final String REFUND_CLOSED = "CLOSED";
+
+    public static final String COUPON_AVAILABLE = "AVAILABLE";
+    public static final String COUPON_LOCKED = "LOCKED";
+    public static final String COUPON_USED = "USED";
+    public static final String COUPON_EXPIRED = "EXPIRED";
+
+    public static final String SETTLEMENT_FROZEN = "FROZEN";
+    public static final String SETTLEMENT_AVAILABLE = "AVAILABLE";
+    public static final String SETTLEMENT_REVERSED = "REVERSED";
+    public static final String SETTLEMENT_WITHDRAWN = "WITHDRAWN";
+
+    public static final String WITHDRAW_PENDING = "PENDING";
+    public static final String WITHDRAW_APPROVED = "APPROVED";
+    public static final String WITHDRAW_REJECTED = "REJECTED";
 }

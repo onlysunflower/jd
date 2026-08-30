@@ -26,19 +26,22 @@ public class RefundService {
     private final OrderInfoMapper orderInfoMapper;
     private final OrderService orderService;
     private final OperationLogService logService;
+    private final SettlementService settlementService;
 
     public RefundService(
             RefundRequestMapper refundRequestMapper,
             RefundLogMapper refundLogMapper,
             OrderInfoMapper orderInfoMapper,
             OrderService orderService,
-            OperationLogService logService
+            OperationLogService logService,
+            SettlementService settlementService
     ) {
         this.refundRequestMapper = refundRequestMapper;
         this.refundLogMapper = refundLogMapper;
         this.orderInfoMapper = orderInfoMapper;
         this.orderService = orderService;
         this.logService = logService;
+        this.settlementService = settlementService;
     }
 
     public List<RefundRequest> myRefunds() {
@@ -103,9 +106,10 @@ public class RefundService {
         refund.setUserId(user.getUserId());
         refund.setMerchantId(order.getMerchantId());
         refund.setType(request.getType());
+        refund.setSourceOrderStatus(order.getStatus());
         refund.setReason(request.getReason());
         refund.setEvidenceImages(request.getEvidenceImages());
-        refund.setAmount(order.getTotalAmount());
+        refund.setAmount(order.getPayableAmount() == null ? order.getTotalAmount() : order.getPayableAmount());
         refund.setStatus(Constants.REFUND_REVIEWING);
         refund.setOriginalOrderStatus(order.getStatus());
         refund.setCreatedAt(LocalDateTime.now());
@@ -117,6 +121,7 @@ public class RefundService {
         return refund;
     }
 
+    @Transactional
     public RefundRequest approve(Long id, String remark) {
         AuthUser user = RoleGuard.requireRole(Constants.ROLE_MERCHANT, Constants.ROLE_SUPER_ADMIN);
         RefundRequest refund = merchantOwned(id, user);
@@ -133,6 +138,12 @@ public class RefundService {
             orderService.markRefundResult(orderInfoMapper.selectById(refund.getOrderId()), true);
         }
         addLog(id, "MERCHANT_APPROVE", remark);
+        if (!returnRequired) {
+            OrderInfo order = orderInfoMapper.selectById(refund.getOrderId());
+            orderService.markRefundResult(order, true);
+            settlementService.reverseForOrder(order.getId());
+            addLog(id, "REFUND_DIRECT", "未收货或仅退款申请，无需寄回，退款完成");
+        }
         return refund;
     }
 
@@ -181,10 +192,12 @@ public class RefundService {
         refund.setUpdatedAt(LocalDateTime.now());
         refundRequestMapper.updateById(refund);
         orderService.markRefundResult(orderInfoMapper.selectById(refund.getOrderId()), true);
+        settlementService.reverseForOrder(refund.getOrderId());
         addLog(id, "MERCHANT_CONFIRM_RETURN", remark);
         return refund;
     }
 
+    @Transactional
     public RefundRequest requestIntervention(Long id) {
         AuthUser user = RoleGuard.requireRole(Constants.ROLE_USER);
         RefundRequest refund = refundRequestMapper.selectById(id);
@@ -198,6 +211,7 @@ public class RefundService {
         refund.setStatus(Constants.REFUND_PLATFORM);
         refund.setUpdatedAt(LocalDateTime.now());
         refundRequestMapper.updateById(refund);
+        orderService.markRefunding(orderInfoMapper.selectById(refund.getOrderId()));
         addLog(id, "USER_REQUEST_INTERVENTION", "用户申请平台客服介入");
         return refund;
     }

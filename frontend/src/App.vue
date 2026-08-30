@@ -12,8 +12,11 @@
         <el-menu-item index="/">商品</el-menu-item>
         <el-menu-item v-if="hasRole('USER')" index="/cart">购物车</el-menu-item>
         <el-menu-item v-if="hasRole('USER')" index="/orders">我的订单</el-menu-item>
-        <el-menu-item v-if="hasRole('USER')" index="/refunds">我的售后</el-menu-item>
+        <el-menu-item v-if="hasRole('USER')" index="/refunds">售后/评价</el-menu-item>
+        <el-menu-item v-if="hasRole('USER')" index="/merchant/apply">商家入驻</el-menu-item>
         <el-menu-item v-if="hasRole('MERCHANT', 'SUPER_ADMIN')" index="/merchant">商家后台</el-menu-item>
+        <el-menu-item v-if="hasRole('MERCHANT')" index="/merchant/reviews">评价管理</el-menu-item>
+        <el-menu-item v-if="hasRole('MERCHANT')" index="/merchant/finance">财务结算</el-menu-item>
         <el-menu-item v-if="hasRole('SERVICE_ADMIN', 'PRODUCT_ADMIN', 'SUPER_ADMIN')" index="/admin">管理员后台</el-menu-item>
       </el-menu>
       <div class="account">

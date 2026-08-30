@@ -16,6 +16,10 @@ public class Review {
     private Long userId;
     private Integer rating;
     private String content;
+    private String appendContent;
     private String reply;
+    private String status;
+    private LocalDateTime appendAt;
+    private LocalDateTime replyAt;
     private LocalDateTime createdAt;
 }

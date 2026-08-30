@@ -1,44 +1,169 @@
 <template>
   <div class="page">
-    <div class="toolbar"><div><h2>我的订单</h2><p class="muted">查看订单进度并完成支付、取消或确认收货</p></div><el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button></div>
-    <div class="stat-grid"><div class="stat-card"><span>全部订单</span><strong>{{ orders.length }}</strong></div><div class="stat-card"><span>待处理</span><strong>{{ countBy(['WAIT_PAY', 'WAIT_SHIP', 'WAIT_RECEIVE']) }}</strong></div><div class="stat-card"><span>退款中</span><strong>{{ countBy(['REFUNDING']) }}</strong></div><div class="stat-card"><span>已完成</span><strong>{{ countBy(['COMPLETED', 'REFUNDED']) }}</strong></div></div>
-    <el-tabs v-model="activeStatus" class="order-tabs"><el-tab-pane v-for="tab in orderTabs" :key="tab.value" :label="tab.label" :name="tab.value" /></el-tabs>
-    <div v-if="loading" class="order-list"><div v-for="item in 3" :key="item" class="skeleton-card"><el-skeleton animated :rows="4" /></div></div>
+    <div class="toolbar">
+      <div>
+        <h2>我的订单</h2>
+        <p class="muted">演示下单、支付、取消、确认收货和申请售后</p>
+      </div>
+      <el-button :icon="Refresh" @click="load">刷新</el-button>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <span>全部订单</span>
+        <strong>{{ orders.length }}</strong>
+      </div>
+      <div class="stat-card">
+        <span>待处理</span>
+        <strong>{{ countBy(['WAIT_PAY', 'WAIT_SHIP', 'WAIT_RECEIVE']) }}</strong>
+      </div>
+      <div class="stat-card">
+        <span>退款中</span>
+        <strong>{{ countBy(['REFUNDING']) }}</strong>
+      </div>
+      <div class="stat-card">
+        <span>已完成</span>
+        <strong>{{ countBy(['COMPLETED', 'REFUNDED']) }}</strong>
+      </div>
+    </div>
+
+    <el-tabs v-model="activeStatus" class="order-tabs">
+      <el-tab-pane v-for="tab in orderTabs" :key="tab.value" :label="tab.label" :name="tab.value" />
+    </el-tabs>
+
+    <div v-if="loading" class="order-list">
+      <div v-for="item in 3" :key="item" class="skeleton-card"><el-skeleton animated :rows="3" /></div>
+    </div>
     <div v-else-if="filteredOrders.length" class="order-list">
       <article v-for="row in filteredOrders" :key="row.id" class="order-card">
-        <header class="order-card__head"><div class="order-reference"><span>订单号 <b>{{ row.orderNo }}</b></span><span>下单时间 {{ row.createdAt }}</span></div><el-tag :type="statusType(row.status)" effect="light">{{ statusText(row.status) }}</el-tag></header>
-        <div class="order-card__body"><div class="order-summary"><div class="order-product-placeholder"><el-icon><Goods /></el-icon></div><div class="order-summary__text"><strong>订单金额 ¥{{ money(row.totalAmount) }}</strong><span class="order-summary__address">收货地址：{{ row.receiverAddress }}</span><span v-if="row.logisticsNo">物流：{{ row.logisticsCompany || '物流公司待补充' }} · {{ row.logisticsNo }}</span><span v-else>物流：待商家发货</span></div></div><div class="order-finance"><span class="price small"><em>¥</em>{{ money(row.totalAmount) }}</span><div class="compact-actions"><el-button size="small" @click="router.push(`/orders/${row.id}`)">查看详情</el-button><el-button v-if="row.status === 'WAIT_PAY'" type="primary" size="small" :icon="CreditCard" :loading="isProcessing(row.id, 'pay')" :disabled="isProcessing(row.id)" @click="pay(row)">支付</el-button><el-button v-if="row.status === 'WAIT_PAY'" type="danger" plain size="small" :icon="Close" :loading="isProcessing(row.id, 'cancel')" :disabled="isProcessing(row.id)" @click="cancel(row)">取消</el-button><el-button v-if="row.status === 'WAIT_RECEIVE'" type="primary" size="small" :icon="Check" :loading="isProcessing(row.id, 'confirm')" :disabled="isProcessing(row.id)" @click="confirm(row)">确认收货</el-button></div></div></div>
+        <header class="order-card__head">
+          <div class="order-reference"><span>订单号 <b>{{ row.orderNo }}</b></span><span>下单时间 {{ row.createdAt }}</span></div>
+          <el-tag :type="statusType(row.status)" effect="light">{{ statusText(row.status) }}</el-tag>
+        </header>
+        <div class="order-card__body">
+          <div class="order-summary">
+            <div class="order-product-placeholder"><el-icon><Goods /></el-icon></div>
+            <div class="order-summary__text"><strong>订单商品</strong><span>订单商品信息将在订单详情中展示</span><div class="order-summary__address">收货地址：{{ row.receiverAddress }}</div></div>
+          </div>
+          <div class="order-finance"><small>订单实付</small><span class="price small"><em>¥</em>{{ row.payableAmount ?? row.totalAmount }}</span><div class="compact-actions">
+            <el-button size="small" :icon="View" @click="router.push(`/orders/${row.id}`)">详情</el-button>
+            <el-button v-if="row.status === 'WAIT_PAY'" type="primary" size="small" :icon="CreditCard" @click="pay(row)">支付</el-button>
+            <el-button v-if="row.status === 'WAIT_PAY'" size="small" type="danger" :icon="Close" @click="cancel(row)">取消</el-button>
+            <el-button v-if="row.status === 'WAIT_RECEIVE'" type="primary" size="small" :icon="Check" @click="confirm(row)">确认收货</el-button>
+            <el-button v-if="['WAIT_SHIP','WAIT_RECEIVE','COMPLETED'].includes(row.status)" size="small" :icon="RefreshLeft" @click="openRefund(row)">申请售后</el-button>
+          </div></div>
+        </div>
       </article>
     </div>
-    <div v-else class="empty-state"><el-empty description="暂无相关订单" :image-size="112" /><p class="empty-state__copy">下单后的商品会在这里展示订单进度</p><el-button type="primary" @click="router.push('/')">去逛逛</el-button></div>
+    <div v-else class="empty-state"><el-empty description="暂无相关订单" :image-size="112" /><p class="empty-state__copy">下单后的商品会在这里展示订单进度</p></div>
+
+    <el-dialog v-model="refundVisible" title="申请退款 / 退货退款" width="520px">
+      <el-alert type="info" show-icon :closable="false" title="申请后订单会进入退款中，商家可同意、拒绝或由平台介入处理。" />
+      <el-form :model="refundForm" label-width="90px" style="margin-top: 18px">
+        <el-form-item label="类型">
+          <el-select v-model="refundForm.type" style="width: 100%">
+            <el-option label="仅退款" value="REFUND_ONLY" />
+            <el-option label="退货退款" value="RETURN_AND_REFUND" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="原因">
+          <el-input v-model="refundForm.reason" type="textarea" :rows="4" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="refundVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitRefund">提交申请</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Close, CreditCard, Goods, Refresh } from '@element-plus/icons-vue'
-import { orderApi } from '../api'
+import { ElMessage } from 'element-plus'
+import { Check, Close, CreditCard, Goods, Refresh, RefreshLeft, View } from '@element-plus/icons-vue'
+import { orderApi, refundApi } from '../api'
 
-const router = useRouter()
 const orders = ref([])
+const router = useRouter()
 const loading = ref(false)
 const activeStatus = ref('ALL')
-const processingId = ref(null)
-const processingAction = ref(null)
-const labels = { WAIT_PAY: '待付款', WAIT_SHIP: '待发货', WAIT_RECEIVE: '待收货', COMPLETED: '已完成', CANCELED: '已取消', REFUNDING: '退款中', REFUNDED: '已退款' }
-const orderTabs = [{ label: '全部', value: 'ALL' }, { label: '待付款', value: 'WAIT_PAY' }, { label: '待发货', value: 'WAIT_SHIP' }, { label: '待收货', value: 'WAIT_RECEIVE' }, { label: '已完成', value: 'COMPLETED' }, { label: '已取消', value: 'CANCELED' }, { label: '退款中', value: 'REFUNDING' }, { label: '已退款', value: 'REFUNDED' }]
+const refundVisible = ref(false)
+const currentOrder = ref(null)
+const refundForm = reactive({ type: 'RETURN_AND_REFUND', reason: '商品与描述不符，申请售后处理' })
+
+const labels = {
+  WAIT_PAY: '待付款',
+  WAIT_SHIP: '待发货',
+  WAIT_RECEIVE: '待收货',
+  COMPLETED: '已完成',
+  CANCELED: '已取消',
+  REFUNDING: '退款中',
+  REFUNDED: '已退款'
+}
+
+const orderTabs = [
+  { label: '全部', value: 'ALL' }, { label: '待付款', value: 'WAIT_PAY' }, { label: '待发货', value: 'WAIT_SHIP' },
+  { label: '待收货', value: 'WAIT_RECEIVE' }, { label: '已完成', value: 'COMPLETED' }, { label: '已取消', value: 'CANCELED' }
+]
 const filteredOrders = computed(() => activeStatus.value === 'ALL' ? orders.value : orders.value.filter((item) => item.status === activeStatus.value))
-function money(value) { return Number(value || 0).toFixed(2) }
-function statusText(status) { return labels[status] || status }
-function statusType(status) { return ({ WAIT_PAY: 'warning', WAIT_SHIP: 'primary', WAIT_RECEIVE: 'success', COMPLETED: 'success', CANCELED: 'info', REFUNDING: 'danger', REFUNDED: 'success' })[status] || 'info' }
-function countBy(statuses) { return orders.value.filter((item) => statuses.includes(item.status)).length }
-function isProcessing(id, action) { return processingId.value === id && (!action || processingAction.value === action) }
-async function load() { loading.value = true; try { orders.value = await orderApi.list() } catch (error) { ElMessage.error(error.message || '订单加载失败') } finally { loading.value = false } }
-async function operate(row, action, title, message, request) { try { await ElMessageBox.confirm(message, title, { type: 'warning' }) } catch { return } processingId.value = row.id; processingAction.value = action; try { await request(row.id); ElMessage.success(action === 'pay' ? '模拟支付成功' : action === 'cancel' ? '订单已取消' : '已确认收货'); await load() } catch (error) { ElMessage.error(error.message || '订单操作失败'); await load() } finally { processingId.value = null; processingAction.value = null } }
-function pay(row) { return operate(row, 'pay', '确认支付', `确认支付订单 ${row.orderNo} 吗？`, orderApi.pay) }
-function cancel(row) { return operate(row, 'cancel', '取消订单', `确认取消订单 ${row.orderNo} 吗？`, orderApi.cancel) }
-function confirm(row) { return operate(row, 'confirm', '确认收货', `确认已收到订单 ${row.orderNo} 的商品吗？`, orderApi.confirm) }
+
+function statusText(status) {
+  return labels[status] || status
+}
+
+function statusType(status) {
+  const map = {
+    WAIT_PAY: 'warning',
+    WAIT_SHIP: 'primary',
+    WAIT_RECEIVE: 'success',
+    COMPLETED: 'success',
+    CANCELED: 'info',
+    REFUNDING: 'danger',
+    REFUNDED: 'success'
+  }
+  return map[status] || 'info'
+}
+
+function countBy(statuses) {
+  return orders.value.filter((item) => statuses.includes(item.status)).length
+}
+
+async function load() {
+  loading.value = true
+  try { orders.value = await orderApi.list() } finally { loading.value = false }
+}
+
+async function pay(row) {
+  await orderApi.pay(row.id)
+  ElMessage.success('模拟支付成功')
+  load()
+}
+
+async function cancel(row) {
+  await orderApi.cancel(row.id)
+  ElMessage.success('订单已取消')
+  load()
+}
+
+async function confirm(row) {
+  await orderApi.confirm(row.id)
+  ElMessage.success('已确认收货')
+  load()
+}
+
+function openRefund(row) {
+  currentOrder.value = row
+  refundVisible.value = true
+}
+
+async function submitRefund() {
+  await refundApi.create({ orderId: currentOrder.value.id, ...refundForm })
+  ElMessage.success('售后申请已提交')
+  refundVisible.value = false
+  load()
+}
+
 onMounted(load)
 </script>

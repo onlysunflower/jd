@@ -153,7 +153,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="productVisible" :title="editingProductId ? '编辑商品' : '发布商品'" width="580px" @open="loadCategories">
+    <el-dialog v-model="productVisible" :title="editingProductId ? '编辑商品' : '发布商品'" width="min(780px, 94vw)" @open="loadCategories">
       <el-form ref="productFormRef" :model="productForm" :rules="productRules" label-width="86px">
         <el-form-item label="商品名称" prop="name"><el-input v-model="productForm.name" /></el-form-item>
         <el-form-item label="副标题" prop="subtitle"><el-input v-model="productForm.subtitle" /></el-form-item>
@@ -163,8 +163,19 @@
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="价格" prop="price"><el-input-number v-model="productForm.price" :min="0" :precision="2" /></el-form-item>
-        <el-form-item label="库存" prop="stock"><el-input-number v-model="productForm.stock" :min="0" :precision="0" /></el-form-item>
+        <el-form-item label="SKU 规格" required>
+          <div class="sku-editor">
+            <div class="sku-labels"><span>规格名称</span><span>SKU 编码</span><span>销售价</span><span>库存</span><span /></div>
+            <div v-for="(sku, index) in productForm.skus" :key="sku.localKey" class="sku-row">
+              <el-input v-model.trim="sku.specName" placeholder="规格，如 黑色 / 256GB" />
+              <el-input v-model.trim="sku.skuCode" placeholder="SKU 编码（可自动生成）" />
+              <el-input-number v-model="sku.price" :min="0.01" :precision="2" controls-position="right" />
+              <el-input-number v-model="sku.stock" :min="0" :precision="0" controls-position="right" />
+              <el-button circle :icon="Close" :disabled="productForm.skus.length === 1" @click="removeSku(index)" />
+            </div>
+            <el-button link type="primary" :icon="Plus" @click="addSku">添加规格</el-button>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="productVisible = false">取消</el-button>
@@ -289,7 +300,8 @@ const productForm = reactive({
   subtitle: '',
   mainImage: '',
   price: 99,
-  stock: 100
+  stock: 100,
+  skus: []
 })
 const productRules = {
   name: [
@@ -404,6 +416,7 @@ function openCreateProduct() {
   productForm.mainImage = ''
   productForm.price = 99
   productForm.stock = 100
+  productForm.skus = [newSku()]
   productVisible.value = true
   clearProductValidate()
 }
@@ -416,6 +429,7 @@ function editProduct(row) {
   productForm.mainImage = row.mainImage || ''
   productForm.price = row.price
   productForm.stock = row.stock
+  productForm.skus = (row.skus?.length ? row.skus : [{ specName: '默认规格', price: row.price, stock: row.stock }]).map((sku) => ({ ...sku, localKey: `${sku.id || 'new'}-${Math.random()}` }))
   productVisible.value = true
   clearProductValidate()
 }
@@ -447,13 +461,20 @@ async function submitProduct() {
   } catch (e) {
     return
   }
+  if (!productForm.skus.length || productForm.skus.some((sku) => !sku.specName || Number(sku.price) <= 0 || Number(sku.stock) < 0)) {
+    ElMessage.warning('请完整填写每个 SKU 的规格名称、销售价和库存')
+    return
+  }
+  productForm.price = Math.min(...productForm.skus.map((sku) => Number(sku.price)))
+  productForm.stock = productForm.skus.reduce((total, sku) => total + Number(sku.stock), 0)
+  const payload = { ...productForm, skus: productForm.skus.map(({ localKey, ...sku }) => sku) }
   productSubmitting.value = true
   try {
     if (editingProductId.value) {
-      await merchantApi.updateProduct(editingProductId.value, productForm)
+      await merchantApi.updateProduct(editingProductId.value, payload)
       ElMessage.success('商品已重新提交审核')
     } else {
-      await merchantApi.createProduct(productForm)
+      await merchantApi.createProduct(payload)
       ElMessage.success('商品已提交审核')
     }
     productVisible.value = false
@@ -462,6 +483,10 @@ async function submitProduct() {
     productSubmitting.value = false
   }
 }
+
+function newSku() { return { localKey: `new-${Date.now()}-${Math.random()}`, id: null, skuCode: '', specName: '', price: 99, stock: 100 } }
+function addSku() { productForm.skus.push(newSku()) }
+function removeSku(index) { if (productForm.skus.length > 1) productForm.skus.splice(index, 1) }
 
 async function offShelf(row) {
   await merchantApi.offShelf(row.id)
@@ -673,4 +698,9 @@ onMounted(load)
   color: var(--el-color-info);
   font-size: 13px;
 }
+
+.sku-editor { display: grid; width: 100%; gap: 10px; }
+.sku-labels, .sku-row { display: grid; grid-template-columns: 1.2fr 1.2fr 130px 120px 34px; gap: 8px; align-items: center; }
+.sku-labels { color: var(--muted); font-size: 12px; }
+@media (max-width: 700px) { .sku-labels { display: none; } .sku-row { grid-template-columns: 1fr 1fr; padding-bottom: 12px; border-bottom: 1px solid var(--line); } }
 </style>

@@ -276,6 +276,7 @@ POST   /api/auth/login
 POST   /api/auth/register
 GET    /api/products
 GET    /api/products/{id}
+GET    /api/products/{id}/reviews
 POST   /api/cart/items
 PUT    /api/cart/items/{id}
 DELETE /api/cart/items/{id}
@@ -287,6 +288,7 @@ POST   /api/orders/{id}/cancel
 POST   /api/orders/{id}/confirm
 POST   /api/refunds
 GET    /api/refunds/{id}
+GET    /api/reviews/tasks
 POST   /api/reviews
 ```
 
@@ -333,7 +335,7 @@ GET    /api/admin/logs
 - 订单详情页
 - 退款申请页
 - 售后详情页
-- 评价页
+- 售后与评价页（待评价、已评价、商品评价弹窗）
 - 收货地址管理页
 
 ### 商家端页面
@@ -406,6 +408,16 @@ GET    /api/admin/logs
 
 ## 十一、项目运行方式
 
+### 数据库升级
+
+当前工程已加入 SKU、优惠券、商家入驻、结算提现和评价治理。已有旧数据库时，先备份后在 MySQL 中执行：
+
+```text
+database/migration_business_v2.sql
+```
+
+全新部署或不需要保留旧测试数据时，依次执行 `database/schema.sql`、`database/data.sql`。`schema.sql` 会删除并重建业务表，请勿在需要保留数据的库上直接执行。
+
 ### 后端运行
 
 ```bash
@@ -444,6 +456,7 @@ http://localhost:5173
 | 客服管理员 | service_admin | 123456 |
 | 商品审核员 | product_admin | 123456 |
 | 超级管理员 | super_admin | 123456 |
+| 待审核入驻账号 | merchant_apply | 123456 |
 
 ## 十三、项目亮点
 

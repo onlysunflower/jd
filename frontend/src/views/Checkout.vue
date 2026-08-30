@@ -14,11 +14,18 @@
         <h3>商品信息</h3>
         <div class="checkout-product">
           <img :src="productImage(product)" :alt="product.name" />
-          <div class="checkout-product__name"><strong>{{ product.name }}</strong><span>单价 <b class="price small"><em>¥</em>{{ money(product.price) }}</b></span><span>库存 {{ product.stock }}</span></div>
+          <div class="checkout-product__name"><strong>{{ product.name }}</strong><span>规格 {{ selectedSku?.specName || '默认规格' }}</span><span>单价 <b class="price small"><em>¥</em>{{ money(unitPrice) }}</b></span><span>可售库存 {{ availableStock }}</span></div>
           <div class="checkout-product__quantity"><span>数量</span><b>{{ quantity }}</b></div>
-          <div class="checkout-product__subtotal"><span>小计</span><strong class="price"><em>¥</em>{{ totalAmount }}</strong></div>
+          <div class="checkout-product__subtotal"><span>小计</span><strong class="price"><em>¥</em>{{ originalAmount }}</strong></div>
         </div>
-        <el-alert class="stock-notice" type="warning" show-icon :closable="false" title="创建订单不锁库存，支付时以实时库存为准" />
+        <el-alert class="stock-notice" type="info" show-icon :closable="false" title="提交订单后会锁定所选 SKU 库存，30 分钟未支付将自动关闭并释放库存与优惠券" />
+      </section>
+
+      <section class="checkout-card">
+        <h3>优惠券</h3>
+        <el-select v-model="selectedCouponId" clearable placeholder="不使用优惠券" style="width:100%">
+          <el-option v-for="coupon in coupons" :key="coupon.userCouponId" :value="coupon.userCouponId" :disabled="!couponUsable(coupon)" :label="`${coupon.name}（满 ¥${money(coupon.minAmount)} 减 ¥${money(coupon.discountAmount)}）`" />
+        </el-select>
       </section>
 
       <section class="checkout-card">
@@ -30,7 +37,7 @@
         </el-form>
       </section>
 
-      <section class="checkout-submit"><div><span class="muted">应付金额</span><strong class="price"><em>¥</em>{{ totalAmount }}</strong></div><el-button type="primary" size="large" :loading="submitting" :disabled="submitting" @click="submit">提交订单</el-button></section>
+      <section class="checkout-submit"><div class="amount-breakdown"><span class="muted">商品金额 ¥{{ originalAmount }}</span><span v-if="discountAmount > 0" class="discount-copy">优惠 -¥{{ money(discountAmount) }}</span><strong class="price"><em>¥</em>{{ payableAmount }}</strong></div><el-button type="primary" size="large" :loading="submitting" :disabled="submitting" @click="submit">提交订单</el-button></section>
     </template>
   </div>
 </template>
@@ -40,27 +47,37 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { orderApi, productApi } from '../api'
+import { couponApi, orderApi, productApi } from '../api'
 import { productImage } from '../productVisuals'
 
 const route = useRoute()
 const router = useRouter()
 const product = ref(null)
 const quantity = ref(0)
+const selectedSku = ref(null)
+const coupons = ref([])
+const selectedCouponId = ref(null)
 const loading = ref(true)
 const submitting = ref(false)
 const errorMessage = ref('')
 const form = reactive({ receiver: '', receiverPhone: '', receiverAddress: '' })
 const fieldErrors = reactive({ receiver: '', receiverPhone: '', receiverAddress: '' })
 const isCartSource = computed(() => route.query.source === 'cart')
-const totalAmount = computed(() => (Number(product.value?.price || 0) * quantity.value).toFixed(2))
+const unitPrice = computed(() => Number(selectedSku.value?.price ?? product.value?.price ?? 0))
+const availableStock = computed(() => selectedSku.value ? Math.max(0, Number(selectedSku.value.stock || 0) - Number(selectedSku.value.lockedStock || 0)) : Number(product.value?.stock || 0))
+const originalAmountValue = computed(() => unitPrice.value * quantity.value)
+const originalAmount = computed(() => originalAmountValue.value.toFixed(2))
+const selectedCoupon = computed(() => coupons.value.find((item) => item.userCouponId === selectedCouponId.value))
+const discountAmount = computed(() => couponUsable(selectedCoupon.value) ? Math.min(Number(selectedCoupon.value.discountAmount || 0), originalAmountValue.value) : 0)
+const payableAmount = computed(() => Math.max(0, originalAmountValue.value - discountAmount.value).toFixed(2))
 
 function money(value) { return Number(value || 0).toFixed(2) }
 function goBack() { router.push(isCartSource.value ? '/cart' : '/') }
+function couponUsable(coupon) { return !!coupon && coupon.status === 'AVAILABLE' && originalAmountValue.value >= Number(coupon.minAmount || 0) }
 
 function validateProduct(data) {
   if (data.auditStatus !== 'APPROVED' || data.shelfStatus !== 'ON') return '该商品当前不可购买'
-  if (!data.stock || quantity.value > Number(data.stock)) return '商品库存不足，请调整购买数量'
+  if (!availableStock.value || quantity.value > availableStock.value) return '所选规格库存不足，请调整购买数量'
   return ''
 }
 
@@ -81,7 +98,10 @@ async function load() {
   }
   quantity.value = queryQuantity
   try {
-    const data = await productApi.detail(productId)
+    const [data, couponList] = await Promise.all([productApi.detail(productId), couponApi.mine()])
+    coupons.value = couponList
+    const skuId = Number(route.query.skuId)
+    selectedSku.value = data.skus?.find((sku) => sku.id === skuId) || data.skus?.[0] || null
     const unavailable = validateProduct(data)
     if (unavailable) errorMessage.value = unavailable
     else product.value = data
@@ -96,7 +116,7 @@ async function submit() {
   if (submitting.value || !validateForm()) return
   submitting.value = true
   try {
-    const order = await orderApi.create({ productId: product.value.id, quantity: quantity.value, ...form })
+    const order = await orderApi.create({ productId: product.value.id, skuId: selectedSku.value?.id, couponId: selectedCouponId.value, quantity: quantity.value, ...form })
     ElMessage.success('订单创建成功，请及时支付')
     router.push(`/orders/${order.id}`)
   } catch (error) {
@@ -121,5 +141,7 @@ onMounted(load)
 .stock-notice { margin-top: 20px; }
 .checkout-submit { display: flex; align-items: center; justify-content: flex-end; gap: 24px; margin-top: 20px; padding: 18px 24px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .checkout-submit > div { display: flex; align-items: center; gap: 12px; }
+.amount-breakdown { flex-wrap: wrap; justify-content: flex-end; }
+.discount-copy { color: #16a34a; font-size: 14px; }
 @media (max-width: 720px) { .checkout-product { grid-template-columns: 72px 1fr; gap: 14px; } .checkout-product img { width: 72px; height: 72px; } .checkout-product__quantity, .checkout-product__subtotal { grid-column: 2; } .checkout-submit { padding: 16px; gap: 16px; } }
 </style>
