@@ -39,22 +39,22 @@ public class MerchantProductController {
         return ApiResponse.ok(productService.listForMerchant());
     }
 
-    @PostMapping
+    @PostMapping("/products")
     public ApiResponse<Product> create(@Valid @RequestBody ProductRequest request) {
         return ApiResponse.ok(productService.create(request));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/products/{id}")
     public ApiResponse<Product> update(@PathVariable Long id, @Valid @RequestBody ProductRequest request) {
         return ApiResponse.ok(productService.update(id, request));
     }
 
-    @PostMapping("/{id}/off-shelf")
+    @PostMapping("/products/{id}/off-shelf")
     public ApiResponse<Product> offShelf(@PathVariable Long id) {
         return ApiResponse.ok(productService.offShelf(id));
     }
 
-    @PostMapping("/{id}/on-shelf")
+    @PostMapping("/products/{id}/on-shelf")
     public ApiResponse<Product> onShelf(@PathVariable Long id) {
         return ApiResponse.ok(productService.onShelf(id));
     }
