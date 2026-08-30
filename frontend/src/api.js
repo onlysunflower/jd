@@ -58,6 +58,15 @@ export const orderApi = {
   items: (id) => request.get(`/orders/${id}/items`)
 }
 
+export const couponApi = {
+  mine: () => request.get('/coupons/mine')
+}
+
+export const merchantApplicationApi = {
+  mine: () => request.get('/merchant-application/mine'),
+  submit: (data) => request.post('/merchant-application', data)
+}
+
 export const refundApi = {
   list: () => request.get('/refunds'),
   create: (data) => request.post('/refunds', data),
@@ -68,7 +77,8 @@ export const refundApi = {
 
 export const reviewApi = {
   create: (data) => request.post('/reviews', data),
-  tasks: () => request.get('/reviews/tasks')
+  tasks: () => request.get('/reviews/tasks'),
+  append: (id, data) => request.post(`/reviews/${id}/append`, data)
 }
 
 export const merchantApi = {
@@ -83,7 +93,13 @@ export const merchantApi = {
   refunds: () => request.get('/merchant/refunds'),
   approveRefund: (id, data) => request.post(`/merchant/refunds/${id}/approve`, data),
   rejectRefund: (id, data) => request.post(`/merchant/refunds/${id}/reject`, data),
-  confirmReturn: (id, data) => request.post(`/merchant/refunds/${id}/confirm-return`, data)
+  confirmReturn: (id, data) => request.post(`/merchant/refunds/${id}/confirm-return`, data),
+  reviews: () => request.get('/merchant/reviews'),
+  replyReview: (id, data) => request.post(`/merchant/reviews/${id}/reply`, data),
+  balance: () => request.get('/merchant/finance/balance'),
+  settlements: () => request.get('/merchant/finance/settlements'),
+  withdrawals: () => request.get('/merchant/finance/withdrawals'),
+  requestWithdrawal: (data) => request.post('/merchant/finance/withdrawals', data)
 }
 
 export const adminApi = {
@@ -91,9 +107,18 @@ export const adminApi = {
   merchants: () => request.get('/admin/merchants'),
   updateMerchantStatus: (id, status, reason) => request.post(`/admin/merchants/${id}/status`, null, { params: { status, reason } }),
   pendingProducts: () => request.get('/admin/products/pending'),
+  products: () => request.get('/admin/products'),
   approveProduct: (id) => request.post(`/admin/products/${id}/approve`),
   rejectProduct: (id, data) => request.post(`/admin/products/${id}/reject`, data),
+  forceOffShelf: (id, data) => request.post(`/admin/products/${id}/force-off-shelf`, data),
+  merchantApplications: () => request.get('/admin/merchant-applications'),
+  reviewMerchantApplication: (id, data) => request.post(`/admin/merchant-applications/${id}/review`, data),
   disputes: () => request.get('/admin/refunds/disputes'),
   arbitrate: (id, data) => request.post(`/admin/refunds/${id}/arbitrate`, data),
+  reviews: () => request.get('/admin/reviews'),
+  moderateReview: (id, data) => request.post(`/admin/reviews/${id}/moderate`, data),
+  settlements: () => request.get('/admin/finance/settlements'),
+  withdrawals: () => request.get('/admin/finance/withdrawals'),
+  reviewWithdrawal: (id, data) => request.post(`/admin/finance/withdrawals/${id}/review`, data),
   logs: () => request.get('/admin/logs')
 }

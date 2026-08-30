@@ -25,7 +25,7 @@
           <div class="refund-card__body">
             <div><span class="refund-detail__label">售后类型 · 退款金额</span><div class="refund-detail__value"><strong>{{ typeText(row.type) }}</strong>　<span class="price small"><em>¥</em>{{ row.amount }}</span></div><div v-if="row.returnLogisticsNo" class="refund-detail__value muted return-logistics">退货物流：{{ row.returnLogisticsNo }}</div></div>
             <div><span class="refund-detail__label">申请原因</span><div class="refund-detail__value reason">{{ row.reason }}</div><div class="refund-process"><span v-for="step in processSteps(row.status)" :key="step.label" :class="step.state"><i />{{ step.label }}</span></div></div>
-            <div class="refund-actions"><span class="refund-detail__label">最近更新 {{ row.updatedAt || row.createdAt }}</span><div class="compact-actions"><el-button v-if="row.status === 'WAIT_USER_RETURN'" type="primary" size="small" :icon="Van" @click="submitReturn(row)">填写物流</el-button><el-button v-if="['MERCHANT_REJECTED','MERCHANT_REVIEWING'].includes(row.status)" type="danger" plain size="small" :icon="Warning" @click="intervention(row)">平台介入</el-button><el-button size="small" :icon="Tickets" @click="showLogs(row)">查看进度</el-button></div></div>
+            <div class="refund-actions"><span class="refund-detail__label">最近更新 {{ row.updatedAt || row.createdAt }}</span><div class="compact-actions"><el-button v-if="row.status === 'WAIT_USER_RETURN'" type="primary" size="small" :icon="Van" @click="openReturn(row)">安排退货</el-button><el-button v-if="['MERCHANT_REJECTED','MERCHANT_REVIEWING'].includes(row.status)" type="danger" plain size="small" :icon="Warning" @click="intervention(row)">平台介入</el-button><el-button size="small" :icon="Tickets" @click="showLogs(row)">查看进度</el-button></div></div>
           </div>
         </article>
       </div>
@@ -46,9 +46,9 @@
             <span><strong>{{ task.productName }}</strong><small>订单 {{ task.orderNo }}</small><small>完成于 {{ formatTime(task.completedAt) }}</small></span>
           </button>
           <div class="evaluation-purchase"><span>购买数量 × {{ task.quantity }}</span><strong>¥{{ money(task.price) }}</strong></div>
-          <div v-if="task.reviewed" class="evaluation-content"><el-rate :model-value="task.rating" disabled /><p>{{ task.content }}</p><small>评价于 {{ formatTime(task.reviewedAt) }}</small></div>
+          <div v-if="task.reviewed" class="evaluation-content"><el-rate :model-value="task.rating" disabled /><p>{{ task.content }}</p><p v-if="task.appendContent" class="append-copy"><b>追评：</b>{{ task.appendContent }}</p><small>评价于 {{ formatTime(task.reviewedAt) }}</small></div>
           <div v-else class="evaluation-content pending"><strong>这件商品还没有评价</strong><p>评价将公开展示在商品评价中，帮助其他用户做出选择。</p></div>
-          <div class="evaluation-actions"><el-tag :type="task.reviewed ? 'success' : 'warning'" effect="plain">{{ task.reviewed ? '已评价' : '待评价' }}</el-tag><el-button size="small" @click="showProductReviews(task)">查看评价</el-button><el-button v-if="!task.reviewed" type="primary" size="small" :icon="EditPen" @click="openReviewForm(task)">去评价</el-button></div>
+          <div class="evaluation-actions"><el-tag :type="task.reviewed ? 'success' : 'warning'" effect="plain">{{ task.reviewed ? '已评价' : '待评价' }}</el-tag><el-button size="small" @click="showProductReviews(task)">查看评价</el-button><el-button v-if="!task.reviewed" type="primary" size="small" :icon="EditPen" @click="openReviewForm(task)">去评价</el-button><el-button v-else-if="!task.appendContent" type="primary" plain size="small" :icon="EditPen" @click="openAppendForm(task)">写追评</el-button></div>
         </article>
       </div>
       <div v-else class="empty-state"><el-empty :description="reviewFilter === 'pending' ? '没有待评价商品' : '暂无符合条件的评价记录'" :image-size="112" /><p class="empty-state__copy">确认收货并完成订单后，对应商品会出现在这里</p></div>
@@ -57,6 +57,21 @@
     <el-dialog v-model="logsVisible" title="售后进度" width="min(600px, 92vw)">
       <el-timeline><el-timeline-item v-for="log in logs" :key="log.id" :timestamp="log.createdAt"><strong>{{ roleText(log.operatorRole) }} - {{ actionText(log.action) }}</strong><p>{{ log.remark }}</p></el-timeline-item></el-timeline>
       <div v-if="!logs.length" class="empty-hint">暂无流转记录</div>
+    </el-dialog>
+
+    <el-dialog v-model="appendVisible" title="发表追评" width="min(520px, 92vw)">
+      <el-input v-model="appendContent" type="textarea" :rows="5" maxlength="500" show-word-limit placeholder="补充一段使用后的真实感受" />
+      <template #footer><el-button @click="appendVisible = false">取消</el-button><el-button type="primary" :loading="reviewSubmitting" @click="submitAppend">提交追评</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="returnVisible" title="安排退货" width="min(560px, 92vw)">
+      <el-alert title="仅已确认收货的退货退款需要寄回商品；未收货或物流中的订单由系统直接退款。" type="info" show-icon :closable="false" />
+      <el-form label-position="top" class="return-form">
+        <el-form-item label="寄件方式"><el-radio-group v-model="returnForm.method"><el-radio-button value="PICKUP">上门取件</el-radio-button><el-radio-button value="DROPOFF">自行到快递站寄件</el-radio-button></el-radio-group></el-form-item>
+        <el-form-item label="物流公司"><el-select v-model="returnForm.company" style="width:100%" @change="generateReturnNo"><el-option label="京东快递" value="京东快递" /><el-option label="顺丰速运" value="顺丰速运" /><el-option label="中通快递" value="中通快递" /></el-select></el-form-item>
+        <el-form-item label="模拟退货单号"><el-input v-model="returnForm.logisticsNo"><template #append><el-button @click="generateReturnNo">重新生成</el-button></template></el-input></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="returnVisible = false">取消</el-button><el-button type="primary" @click="submitReturn">确认寄件</el-button></template>
     </el-dialog>
 
     <el-dialog v-model="reviewFormVisible" title="发表商品评价" width="min(560px, 92vw)" destroy-on-close>
@@ -75,7 +90,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { ChatDotRound, EditPen, Refresh, Service, Tickets, Van, Warning } from '@element-plus/icons-vue'
 import ProductReviewsDialog from '../components/ProductReviewsDialog.vue'
 import { refundApi, reviewApi } from '../api'
@@ -90,11 +105,16 @@ const reviewTasks = ref([])
 const reviewLoading = ref(false)
 const reviewFilter = ref('all')
 const reviewFormVisible = ref(false)
+const appendVisible = ref(false)
+const appendContent = ref('')
+const returnVisible = ref(false)
+const currentReturn = ref(null)
 const reviewSubmitting = ref(false)
 const currentTask = ref(null)
 const reviewsVisible = ref(false)
 const selectedProduct = ref(null)
 const reviewForm = reactive({ rating: 5, content: '' })
+const returnForm = reactive({ method: 'PICKUP', company: '京东快递', logisticsNo: '' })
 
 const pendingReviewCount = computed(() => reviewTasks.value.filter((item) => !item.reviewed).length)
 const reviewedCount = computed(() => reviewTasks.value.filter((item) => item.reviewed).length)
@@ -136,22 +156,16 @@ function processSteps(status) {
   return steps.map((label, index) => ({ label, state: index < current ? 'is-done' : index === current ? 'is-current' : '' }))
 }
 
-async function submitReturn(row) {
-  try {
-    const { value } = await ElMessageBox.prompt('请输入退货物流单号', '填写退货物流', { inputPattern: /\S+/, inputErrorMessage: '物流单号不能为空' })
-    await refundApi.submitReturn(row.id, { returnLogisticsNo: value })
-    ElMessage.success('已提交退货物流')
-    await loadRefunds()
-  } catch (error) {
-    if (error !== 'cancel' && error !== 'close') throw error
-  }
-}
+function generateReturnNo() { const prefix = returnForm.company === '顺丰速运' ? 'SF' : returnForm.company === '中通快递' ? 'ZT' : 'JDR'; returnForm.logisticsNo = `${prefix}${Date.now()}${Math.floor(Math.random() * 90 + 10)}` }
+function openReturn(row) { currentReturn.value = row; returnForm.method = 'PICKUP'; returnForm.company = '京东快递'; generateReturnNo(); returnVisible.value = true }
+async function submitReturn() { if (!returnForm.logisticsNo.trim()) { ElMessage.warning('请生成物流单号'); return }; await refundApi.submitReturn(currentReturn.value.id, { returnLogisticsNo: returnForm.logisticsNo.trim() }); ElMessage.success(returnForm.method === 'PICKUP' ? '上门取件预约成功，运单已生成' : '寄件信息已提交商家'); returnVisible.value = false; await loadRefunds() }
 
 async function intervention(row) { await refundApi.intervention(row.id); ElMessage.success('已申请平台介入'); await loadRefunds() }
 async function showLogs(row) { logs.value = await refundApi.logs(row.id); logsVisible.value = true }
 
 function showProductReviews(task) { selectedProduct.value = { id: task.productId, name: task.productName }; reviewsVisible.value = true }
 function openReviewForm(task) { currentTask.value = task; reviewForm.rating = 5; reviewForm.content = ''; reviewFormVisible.value = true }
+function openAppendForm(task) { currentTask.value = task; appendContent.value = ''; appendVisible.value = true }
 
 async function submitReview() {
   if (!reviewForm.content.trim()) { ElMessage.warning('请填写评价内容'); return }
@@ -164,6 +178,13 @@ async function submitReview() {
   } finally { reviewSubmitting.value = false }
 }
 
+async function submitAppend() {
+  if (!appendContent.value.trim()) { ElMessage.warning('请填写追评内容'); return }
+  reviewSubmitting.value = true
+  try { await reviewApi.append(currentTask.value.reviewId, { content: appendContent.value.trim() }); ElMessage.success('追评发表成功'); appendVisible.value = false; await loadReviewTasks() }
+  finally { reviewSubmitting.value = false }
+}
+
 onMounted(() => Promise.all([loadRefunds(), loadReviewTasks()]))
 </script>
 
@@ -172,6 +193,8 @@ onMounted(() => Promise.all([loadRefunds(), loadReviewTasks()]))
 .tab-label { display: inline-flex; align-items: center; gap: 7px; }
 .tab-label :deep(.el-badge__content) { position: static; transform: none; margin-left: 2px; }
 .return-logistics { margin-top: 8px; }
+.return-form { margin-top: 18px; }
+.append-copy { padding-top: 6px; border-top: 1px dashed var(--line); }
 .review-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .review-overview { display: flex; flex-wrap: wrap; gap: 12px 28px; color: #6b7280; font-size: 14px; }
 .review-overview b { margin-left: 5px; color: #111827; font-size: 18px; }

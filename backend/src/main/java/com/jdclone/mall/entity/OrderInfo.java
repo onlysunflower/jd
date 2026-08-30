@@ -18,15 +18,22 @@ public class OrderInfo {
     private Long userId;
     private Long merchantId;
     private BigDecimal totalAmount;
+    private Long couponId;
+    private BigDecimal discountAmount;
+    private BigDecimal payableAmount;
     private String status;
     private String receiver;
     private String receiverPhone;
     private String receiverAddress;
     private String logisticsCompany;
     private String logisticsNo;
+    private String paymentNo;
+    private String closeReason;
+    private String settlementStatus;
     private LocalDateTime paidAt;
     private LocalDateTime shippedAt;
     private LocalDateTime completedAt;
+    private LocalDateTime closedAt;
     private LocalDateTime createdAt;
     @TableField(exist = false)
     private List<OrderItem> items;

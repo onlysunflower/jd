@@ -28,7 +28,8 @@
         </div>
         <div class="cart-product">
           <strong>{{ row.productName || '商品已删除' }}</strong>
-          <p v-if="row.purchasable" class="stock-copy">库存 {{ row.stock }}</p>
+          <p class="stock-copy">规格：{{ row.specName || '默认规格' }}</p>
+          <p v-if="row.purchasable" class="stock-copy">可售库存 {{ row.availableStock }}</p>
           <p v-else class="unavailable-copy">{{ row.unavailableReason || '商品当前不可结算' }}</p>
         </div>
         <div class="cart-price"><small>单价</small><span class="price small"><em>¥</em>{{ money(row.price) }}</span></div>
@@ -37,7 +38,7 @@
           <el-input-number
             :model-value="row.quantity"
             :min="1"
-            :max="Math.max(1, Number(row.stock || 1))"
+            :max="Math.max(1, Number(row.availableStock || 1))"
             size="small"
             :disabled="isBusy(row.id) || !canUpdate(row)"
             @change="(value) => updateQuantity(row, value)"
@@ -81,7 +82,7 @@ const cartTotal = computed(() => items.value.reduce((total, item) => total + Num
 function money(value) { return Number(value || 0).toFixed(2) }
 function subtotal(row) { return (Number(row.price || 0) * Number(row.quantity || 0)).toFixed(2) }
 function isBusy(id) { return updatingId.value === id || removingId.value === id }
-function canUpdate(row) { return Number(row.stock || 0) > 0 }
+function canUpdate(row) { return Number(row.availableStock || 0) > 0 }
 function hideBrokenImage(event) { event.target.style.display = 'none' }
 
 async function load() {
@@ -141,7 +142,7 @@ function checkout() {
     return
   }
   const row = selectedItem.value
-  router.push({ path: '/checkout', query: { productId: row.productId, quantity: row.quantity, cartItemId: row.id, source: 'cart' } })
+  router.push({ path: '/checkout', query: { productId: row.productId, skuId: row.skuId, quantity: row.quantity, cartItemId: row.id, source: 'cart' } })
 }
 
 onMounted(load)

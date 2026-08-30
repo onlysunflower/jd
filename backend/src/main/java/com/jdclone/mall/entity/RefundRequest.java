@@ -16,6 +16,7 @@ public class RefundRequest {
     private Long userId;
     private Long merchantId;
     private String type;
+    private String sourceOrderStatus;
     private String reason;
     private String evidenceImages;
     private BigDecimal amount;

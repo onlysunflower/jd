@@ -45,9 +45,10 @@
             <div class="order-product-placeholder"><el-icon><Goods /></el-icon></div>
             <div class="order-summary__text"><strong>订单商品</strong><span>订单商品信息将在订单详情中展示</span><div class="order-summary__address">收货地址：{{ row.receiverAddress }}</div></div>
           </div>
-          <div class="order-finance"><small>订单实付</small><span class="price small"><em>¥</em>{{ row.totalAmount }}</span><div class="compact-actions">
+          <div class="order-finance"><small>订单实付</small><span class="price small"><em>¥</em>{{ row.payableAmount ?? row.totalAmount }}</span><div class="compact-actions">
+            <el-button size="small" :icon="View" @click="router.push(`/orders/${row.id}`)">详情</el-button>
             <el-button v-if="row.status === 'WAIT_PAY'" type="primary" size="small" :icon="CreditCard" @click="pay(row)">支付</el-button>
-            <el-button v-if="['WAIT_PAY','WAIT_SHIP'].includes(row.status)" size="small" :type="row.status === 'WAIT_PAY' ? 'danger' : undefined" :icon="Close" @click="cancel(row)">取消</el-button>
+            <el-button v-if="row.status === 'WAIT_PAY'" size="small" type="danger" :icon="Close" @click="cancel(row)">取消</el-button>
             <el-button v-if="row.status === 'WAIT_RECEIVE'" type="primary" size="small" :icon="Check" @click="confirm(row)">确认收货</el-button>
             <el-button v-if="['WAIT_SHIP','WAIT_RECEIVE','COMPLETED'].includes(row.status)" size="small" :icon="RefreshLeft" @click="openRefund(row)">申请售后</el-button>
           </div></div>
@@ -79,11 +80,13 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Check, Close, CreditCard, Goods, Refresh, RefreshLeft } from '@element-plus/icons-vue'
+import { Check, Close, CreditCard, Goods, Refresh, RefreshLeft, View } from '@element-plus/icons-vue'
 import { orderApi, refundApi } from '../api'
 
 const orders = ref([])
+const router = useRouter()
 const loading = ref(false)
 const activeStatus = ref('ALL')
 const refundVisible = ref(false)

@@ -13,6 +13,9 @@ public class OrderItem {
     private Long id;
     private Long orderId;
     private Long productId;
+    private Long skuId;
+    private String skuCode;
+    private String specName;
     private String productName;
     private String productImage;
     private BigDecimal price;

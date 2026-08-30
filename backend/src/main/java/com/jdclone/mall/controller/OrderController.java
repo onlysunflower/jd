@@ -48,6 +48,11 @@ public class OrderController {
         return ApiResponse.ok(orderService.pay(id));
     }
 
+    @PostMapping("/{id}/payment-callback")
+    public ApiResponse<OrderInfo> paymentCallback(@PathVariable Long id) {
+        return ApiResponse.ok(orderService.pay(id));
+    }
+
     @PostMapping("/{id}/cancel")
     public ApiResponse<OrderInfo> cancel(@PathVariable Long id) {
         return ApiResponse.ok(orderService.cancel(id));

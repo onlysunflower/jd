@@ -22,6 +22,11 @@ public class AdminProductController {
         this.productService = productService;
     }
 
+    @GetMapping
+    public ApiResponse<List<Product>> list() {
+        return ApiResponse.ok(productService.listForAdmin());
+    }
+
     @GetMapping("/pending")
     public ApiResponse<List<Product>> pending() {
         return ApiResponse.ok(productService.pending());
@@ -35,5 +40,10 @@ public class AdminProductController {
     @PostMapping("/{id}/reject")
     public ApiResponse<Product> reject(@PathVariable Long id, @Valid @RequestBody RefundReplyRequest request) {
         return ApiResponse.ok(productService.reject(id, request.getRemark()));
+    }
+
+    @PostMapping("/{id}/force-off-shelf")
+    public ApiResponse<Product> forceOffShelf(@PathVariable Long id, @Valid @RequestBody RefundReplyRequest request) {
+        return ApiResponse.ok(productService.forceOffShelf(id, request.getRemark()));
     }
 }
