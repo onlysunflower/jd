@@ -132,6 +132,7 @@ CREATE TABLE refund_request (
   evidence_images VARCHAR(1000),
   amount DECIMAL(10,2) NOT NULL,
   status VARCHAR(32) NOT NULL,
+  original_order_status VARCHAR(32),
   merchant_reply VARCHAR(255),
   return_logistics_no VARCHAR(64),
   admin_decision VARCHAR(64),

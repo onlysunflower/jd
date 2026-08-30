@@ -185,6 +185,11 @@ public class OrderService {
         orderInfoMapper.updateById(order);
     }
 
+    public void restoreStatus(OrderInfo order, String status) {
+        order.setStatus(status);
+        orderInfoMapper.updateById(order);
+    }
+
     public void markRefundResult(OrderInfo order, boolean success) {
         order.setStatus(success ? Constants.ORDER_REFUNDED : Constants.ORDER_WAIT_RECEIVE);
         orderInfoMapper.updateById(order);

@@ -20,6 +20,7 @@ public class RefundRequest {
     private String evidenceImages;
     private BigDecimal amount;
     private String status;
+    private String originalOrderStatus;
     private String merchantReply;
     private String returnLogisticsNo;
     private String adminDecision;

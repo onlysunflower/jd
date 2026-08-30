@@ -66,6 +66,12 @@ public class RefundService {
     }
 
     public List<RefundLog> logs(Long refundId) {
+        AuthUser user = RoleGuard.requireLogin();
+        RefundRequest refund = refundRequestMapper.selectById(refundId);
+        if (refund == null) {
+            throw new BizException("售后单不存在");
+        }
+        ensureCanViewLogs(refund, user);
         return refundLogMapper.selectList(new LambdaQueryWrapper<RefundLog>()
                 .eq(RefundLog::getRefundId, refundId)
                 .orderByAsc(RefundLog::getCreatedAt));
@@ -101,6 +107,7 @@ public class RefundService {
         refund.setEvidenceImages(request.getEvidenceImages());
         refund.setAmount(order.getTotalAmount());
         refund.setStatus(Constants.REFUND_REVIEWING);
+        refund.setOriginalOrderStatus(order.getStatus());
         refund.setCreatedAt(LocalDateTime.now());
         refund.setUpdatedAt(LocalDateTime.now());
         refundRequestMapper.insert(refund);
@@ -129,6 +136,7 @@ public class RefundService {
         return refund;
     }
 
+    @Transactional
     public RefundRequest reject(Long id, String remark) {
         AuthUser user = RoleGuard.requireRole(Constants.ROLE_MERCHANT, Constants.ROLE_SUPER_ADMIN);
         RefundRequest refund = merchantOwned(id, user);
@@ -139,6 +147,7 @@ public class RefundService {
         refund.setMerchantReply(remark);
         refund.setUpdatedAt(LocalDateTime.now());
         refundRequestMapper.updateById(refund);
+        restoreOriginalOrderStatus(refund);
         addLog(id, "MERCHANT_REJECT", remark);
         return refund;
     }
@@ -209,7 +218,14 @@ public class RefundService {
         refund.setAdminRemark(request.getRemark());
         refund.setUpdatedAt(LocalDateTime.now());
         refundRequestMapper.updateById(refund);
-        orderService.markRefundResult(orderInfoMapper.selectById(refund.getOrderId()), approve);
+
+        OrderInfo order = orderInfoMapper.selectById(refund.getOrderId());
+        if (approve) {
+            orderService.markRefundResult(order, true);
+        } else {
+            orderService.restoreStatus(order, resolveOriginalOrderStatus(refund, order));
+        }
+
         addLog(id, "ADMIN_ARBITRATE", refund.getAdminDecision() + "：" + request.getRemark());
         logService.log("REFUND", "ARBITRATE", "管理员仲裁售后单：" + id);
         return refund;
@@ -245,6 +261,55 @@ public class RefundService {
         if (!allowed) {
             throw new BizException("当前订单状态不支持该售后类型");
         }
+    }
+
+    private void ensureCanViewLogs(RefundRequest refund, AuthUser user) {
+        if (Constants.ROLE_USER.equals(user.getRole())) {
+            if (!refund.getUserId().equals(user.getUserId())) {
+                throw new BizException(403, "不能查看其他用户的售后日志");
+            }
+            return;
+        }
+        if (Constants.ROLE_MERCHANT.equals(user.getRole())) {
+            if (!refund.getMerchantId().equals(user.getMerchantId())) {
+                throw new BizException(403, "不能查看其他商家的售后日志");
+            }
+            return;
+        }
+        if (Constants.ROLE_SERVICE_ADMIN.equals(user.getRole())
+                || Constants.ROLE_SUPER_ADMIN.equals(user.getRole())) {
+            return;
+        }
+        throw new BizException(403, "当前角色没有查看售后日志的权限");
+    }
+
+    private void restoreOriginalOrderStatus(RefundRequest refund) {
+        OrderInfo order = orderInfoMapper.selectById(refund.getOrderId());
+        orderService.restoreStatus(order, resolveOriginalOrderStatus(refund, order));
+    }
+
+    private String resolveOriginalOrderStatus(RefundRequest refund, OrderInfo order) {
+        String originalStatus = refund.getOriginalOrderStatus();
+        if (Constants.ORDER_WAIT_SHIP.equals(originalStatus)
+                || Constants.ORDER_WAIT_RECEIVE.equals(originalStatus)
+                || Constants.ORDER_COMPLETED.equals(originalStatus)) {
+            return originalStatus;
+        }
+        if (Constants.ORDER_WAIT_SHIP.equals(order.getStatus())
+                || Constants.ORDER_WAIT_RECEIVE.equals(order.getStatus())
+                || Constants.ORDER_COMPLETED.equals(order.getStatus())) {
+            return order.getStatus();
+        }
+        if (order.getCompletedAt() != null) {
+            return Constants.ORDER_COMPLETED;
+        }
+        if (order.getShippedAt() != null) {
+            return Constants.ORDER_WAIT_RECEIVE;
+        }
+        if (order.getPaidAt() != null) {
+            return Constants.ORDER_WAIT_SHIP;
+        }
+        return Constants.ORDER_WAIT_RECEIVE;
     }
 
     private void addLog(Long refundId, String action, String remark) {
