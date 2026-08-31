@@ -52,6 +52,7 @@ export const orderApi = {
   list: () => request.get('/orders'),
   detail: (id) => request.get(`/orders/${id}`),
   create: (data) => request.post('/orders', data),
+  createFromCart: (data) => request.post('/orders/from-cart', data),
   pay: (id) => request.post(`/orders/${id}/pay`),
   cancel: (id) => request.post(`/orders/${id}/cancel`),
   confirm: (id) => request.post(`/orders/${id}/confirm`),

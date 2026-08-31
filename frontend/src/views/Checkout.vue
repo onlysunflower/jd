@@ -9,21 +9,27 @@
       <p class="empty-state__copy">请返回后重新选择可购买商品。</p>
       <el-button type="primary" @click="goBack">返回{{ isCartSource ? '购物车' : '商品列表' }}</el-button>
     </div>
-    <template v-else-if="product">
+    <template v-else-if="checkoutItems.length">
       <section class="checkout-card">
-        <h3>商品信息</h3>
-        <div class="checkout-product">
-          <img :src="productImage(product)" :alt="product.name" />
-          <div class="checkout-product__name"><strong>{{ product.name }}</strong><span>规格 {{ selectedSku?.specName || '默认规格' }}</span><span>单价 <b class="price small"><em>¥</em>{{ money(unitPrice) }}</b></span><span>可售库存 {{ availableStock }}</span></div>
-          <div class="checkout-product__quantity"><span>数量</span><b>{{ quantity }}</b></div>
-          <div class="checkout-product__subtotal"><span>小计</span><strong class="price"><em>¥</em>{{ originalAmount }}</strong></div>
+        <div class="checkout-section-head">
+          <h3>商品信息</h3>
+          <span class="muted">{{ checkoutItems.length }} 种商品，共 {{ totalQuantity }} 件</span>
+        </div>
+        <div class="checkout-products">
+          <article v-for="item in checkoutItems" :key="item.key" class="checkout-product">
+            <img :src="item.productImage" :alt="item.productName" />
+            <div class="checkout-product__name"><strong>{{ item.productName }}</strong><span>规格 {{ item.specName || '默认规格' }}</span><span>单价 <b class="price small"><em>¥</em>{{ money(item.price) }}</b></span><span>可售库存 {{ item.availableStock }}</span></div>
+            <div class="checkout-product__quantity"><span>数量</span><b>{{ item.quantity }}</b></div>
+            <div class="checkout-product__subtotal"><span>小计</span><strong class="price"><em>¥</em>{{ itemSubtotal(item) }}</strong></div>
+          </article>
         </div>
         <el-alert class="stock-notice" type="info" show-icon :closable="false" title="提交订单后会锁定所选 SKU 库存，30 分钟未支付将自动关闭并释放库存与优惠券" />
+        <el-alert v-if="merchantCount > 1" class="stock-notice" type="warning" show-icon :closable="false" :title="`所选商品来自 ${merchantCount} 个商家，将自动生成 ${merchantCount} 个订单；跨店订单暂不使用优惠券`" />
       </section>
 
       <section class="checkout-card">
         <h3>优惠券</h3>
-        <el-select v-model="selectedCouponId" clearable placeholder="不使用优惠券" style="width:100%">
+        <el-select v-model="selectedCouponId" clearable placeholder="不使用优惠券" style="width:100%" :disabled="merchantCount > 1">
           <el-option v-for="coupon in coupons" :key="coupon.userCouponId" :value="coupon.userCouponId" :disabled="!couponUsable(coupon)" :label="`${coupon.name}（满 ¥${money(coupon.minAmount)} 减 ¥${money(coupon.discountAmount)}）`" />
         </el-select>
       </section>
@@ -43,18 +49,16 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { couponApi, orderApi, productApi } from '../api'
+import { cartApi, couponApi, orderApi, productApi } from '../api'
 import { productImage } from '../productVisuals'
 
 const route = useRoute()
 const router = useRouter()
-const product = ref(null)
-const quantity = ref(0)
-const selectedSku = ref(null)
+const checkoutItems = ref([])
 const coupons = ref([])
 const selectedCouponId = ref(null)
 const loading = ref(true)
@@ -63,23 +67,18 @@ const errorMessage = ref('')
 const form = reactive({ receiver: '', receiverPhone: '', receiverAddress: '' })
 const fieldErrors = reactive({ receiver: '', receiverPhone: '', receiverAddress: '' })
 const isCartSource = computed(() => route.query.source === 'cart')
-const unitPrice = computed(() => Number(selectedSku.value?.price ?? product.value?.price ?? 0))
-const availableStock = computed(() => selectedSku.value ? Math.max(0, Number(selectedSku.value.stock || 0) - Number(selectedSku.value.lockedStock || 0)) : Number(product.value?.stock || 0))
-const originalAmountValue = computed(() => unitPrice.value * quantity.value)
+const totalQuantity = computed(() => checkoutItems.value.reduce((total, item) => total + Number(item.quantity || 0), 0))
+const merchantCount = computed(() => new Set(checkoutItems.value.map((item) => item.merchantId).filter(Boolean)).size || 1)
+const originalAmountValue = computed(() => checkoutItems.value.reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0))
 const originalAmount = computed(() => originalAmountValue.value.toFixed(2))
 const selectedCoupon = computed(() => coupons.value.find((item) => item.userCouponId === selectedCouponId.value))
 const discountAmount = computed(() => couponUsable(selectedCoupon.value) ? Math.min(Number(selectedCoupon.value.discountAmount || 0), originalAmountValue.value) : 0)
 const payableAmount = computed(() => Math.max(0, originalAmountValue.value - discountAmount.value).toFixed(2))
 
 function money(value) { return Number(value || 0).toFixed(2) }
+function itemSubtotal(item) { return (Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2) }
 function goBack() { router.push(isCartSource.value ? '/cart' : '/') }
-function couponUsable(coupon) { return !!coupon && coupon.status === 'AVAILABLE' && originalAmountValue.value >= Number(coupon.minAmount || 0) }
-
-function validateProduct(data) {
-  if (data.auditStatus !== 'APPROVED' || data.shelfStatus !== 'ON') return '该商品当前不可购买'
-  if (!availableStock.value || quantity.value > availableStock.value) return '所选规格库存不足，请调整购买数量'
-  return ''
-}
+function couponUsable(coupon) { return merchantCount.value === 1 && !!coupon && coupon.status === 'AVAILABLE' && originalAmountValue.value >= Number(coupon.minAmount || 0) }
 
 function validateForm() {
   fieldErrors.receiver = form.receiver ? '' : '请输入收货人'
@@ -88,23 +87,65 @@ function validateForm() {
   return !fieldErrors.receiver && !fieldErrors.receiverPhone && !fieldErrors.receiverAddress
 }
 
-async function load() {
+function cartItemIds() {
+  const values = String(route.query.cartItemIds || '').split(',').filter(Boolean).map(Number)
+  return [...new Set(values)].filter((id) => Number.isInteger(id) && id > 0)
+}
+
+async function loadCartItems() {
+  const ids = cartItemIds()
+  if (!ids.length) throw new Error('未选择要结算的购物车商品')
+  const rows = await cartApi.list()
+  const rowMap = new Map(rows.map((row) => [row.id, row]))
+  const selected = ids.map((id) => rowMap.get(id)).filter(Boolean)
+  if (selected.length !== ids.length) throw new Error('部分购物车商品已被删除，请重新选择')
+  const unavailable = selected.find((row) => !row.purchasable)
+  if (unavailable) throw new Error(`${unavailable.productName || '部分商品'}当前不可结算`)
+  checkoutItems.value = selected.map((row) => ({
+    key: `cart-${row.id}`,
+    cartItemId: row.id,
+    merchantId: row.merchantId,
+    productName: row.productName,
+    productImage: row.productImage || '/products/catalog-collection.png',
+    specName: row.specName,
+    price: row.price,
+    quantity: row.quantity,
+    availableStock: row.availableStock
+  }))
+}
+
+async function loadDirectItem() {
   const productId = Number(route.query.productId)
-  const queryQuantity = Number(route.query.quantity)
-  if (!Number.isInteger(productId) || productId < 1 || !Number.isInteger(queryQuantity) || queryQuantity < 1) {
-    errorMessage.value = '订单参数无效'
-    loading.value = false
-    return
-  }
-  quantity.value = queryQuantity
+  const quantity = Number(route.query.quantity)
+  if (!Number.isInteger(productId) || productId < 1 || !Number.isInteger(quantity) || quantity < 1) throw new Error('订单参数无效')
+  const data = await productApi.detail(productId)
+  const skuId = Number(route.query.skuId)
+  const sku = data.skus?.find((item) => item.id === skuId) || data.skus?.[0] || null
+  const availableStock = sku ? Math.max(0, Number(sku.stock || 0) - Number(sku.lockedStock || 0)) : Number(data.stock || 0)
+  if (data.auditStatus !== 'APPROVED' || data.shelfStatus !== 'ON') throw new Error('该商品当前不可购买')
+  if (!availableStock || quantity > availableStock) throw new Error('所选规格库存不足，请调整购买数量')
+  checkoutItems.value = [{
+    key: `product-${data.id}-${sku?.id || 'default'}`,
+    productId: data.id,
+    skuId: sku?.id,
+    merchantId: data.merchantId,
+    productName: data.name,
+    productImage: productImage(data),
+    specName: sku?.specName || '默认规格',
+    price: sku?.price ?? data.price,
+    quantity,
+    availableStock
+  }]
+}
+
+async function load() {
+  loading.value = true
+  errorMessage.value = ''
   try {
-    const [data, couponList] = await Promise.all([productApi.detail(productId), couponApi.mine()])
-    coupons.value = couponList
-    const skuId = Number(route.query.skuId)
-    selectedSku.value = data.skus?.find((sku) => sku.id === skuId) || data.skus?.[0] || null
-    const unavailable = validateProduct(data)
-    if (unavailable) errorMessage.value = unavailable
-    else product.value = data
+    const couponPromise = couponApi.mine()
+    if (isCartSource.value) await loadCartItems()
+    else await loadDirectItem()
+    coupons.value = await couponPromise
   } catch (error) {
     errorMessage.value = error.message || '商品不存在或暂时不可购买'
   } finally {
@@ -116,9 +157,16 @@ async function submit() {
   if (submitting.value || !validateForm()) return
   submitting.value = true
   try {
-    const order = await orderApi.create({ productId: product.value.id, skuId: selectedSku.value?.id, couponId: selectedCouponId.value, quantity: quantity.value, ...form })
-    ElMessage.success('订单创建成功，请及时支付')
-    router.push(`/orders/${order.id}`)
+    if (isCartSource.value) {
+      const orders = await orderApi.createFromCart({ cartItemIds: checkoutItems.value.map((item) => item.cartItemId), couponId: selectedCouponId.value, ...form })
+      ElMessage.success(orders.length > 1 ? `下单成功，已按商家生成 ${orders.length} 个订单` : '订单创建成功，请及时支付')
+      router.push(orders.length === 1 ? `/orders/${orders[0].id}` : '/orders')
+    } else {
+      const item = checkoutItems.value[0]
+      const order = await orderApi.create({ productId: item.productId, skuId: item.skuId, couponId: selectedCouponId.value, quantity: item.quantity, ...form })
+      ElMessage.success('订单创建成功，请及时支付')
+      router.push(`/orders/${order.id}`)
+    }
   } catch (error) {
     ElMessage.error(error.message || '订单创建失败')
     await load()
@@ -127,6 +175,7 @@ async function submit() {
   }
 }
 
+watch(merchantCount, (count) => { if (count > 1) selectedCouponId.value = null })
 onMounted(load)
 </script>
 
@@ -134,7 +183,11 @@ onMounted(load)
 .checkout-heading { margin-top: 8px; }
 .checkout-card { margin-top: 16px; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .checkout-card h3 { margin: 0 0 18px; font-size: 18px; }
-.checkout-product { display: grid; grid-template-columns: 96px minmax(180px, 1fr) 100px 140px; gap: 20px; align-items: center; }
+.checkout-section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.checkout-section-head h3 { margin-bottom: 0; }
+.checkout-products { display: grid; margin-top: 18px; }
+.checkout-product { display: grid; grid-template-columns: 96px minmax(180px, 1fr) 100px 140px; gap: 20px; align-items: center; padding: 16px 0; border-top: 1px solid var(--line); }
+.checkout-product:first-child { border-top: 0; padding-top: 0; }
 .checkout-product img { width: 96px; height: 96px; border-radius: 8px; object-fit: cover; background: #f3f4f6; }
 .checkout-product__name, .checkout-product__quantity, .checkout-product__subtotal { display: grid; gap: 8px; }
 .checkout-product__name span, .checkout-product__quantity span, .checkout-product__subtotal span { color: #64748b; font-size: 14px; }

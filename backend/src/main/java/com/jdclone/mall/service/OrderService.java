@@ -4,14 +4,17 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jdclone.mall.common.BizException;
 import com.jdclone.mall.common.Constants;
 import com.jdclone.mall.dto.OrderCreateRequest;
+import com.jdclone.mall.dto.CartOrderCreateRequest;
 import com.jdclone.mall.dto.CouponDetail;
 import com.jdclone.mall.dto.ShipRequest;
 import com.jdclone.mall.entity.Address;
+import com.jdclone.mall.entity.CartItem;
 import com.jdclone.mall.entity.OrderInfo;
 import com.jdclone.mall.entity.OrderItem;
 import com.jdclone.mall.entity.Product;
 import com.jdclone.mall.entity.ProductSku;
 import com.jdclone.mall.mapper.AddressMapper;
+import com.jdclone.mall.mapper.CartItemMapper;
 import com.jdclone.mall.mapper.OrderInfoMapper;
 import com.jdclone.mall.mapper.OrderItemMapper;
 import com.jdclone.mall.mapper.ProductMapper;
@@ -21,6 +24,11 @@ import com.jdclone.mall.security.RoleGuard;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +45,7 @@ public class OrderService {
     private final OperationLogService logService;
     private final CouponService couponService;
     private final SettlementService settlementService;
+    private final CartItemMapper cartItemMapper;
 
     public OrderService(
             OrderInfoMapper orderInfoMapper,
@@ -45,7 +54,7 @@ public class OrderService {
             AddressMapper addressMapper,
             OperationLogService logService
     ) {
-        this(orderInfoMapper, orderItemMapper, productMapper, null, addressMapper, logService, null, null);
+        this(orderInfoMapper, orderItemMapper, productMapper, null, addressMapper, logService, null, null, null);
     }
 
     @Autowired
@@ -57,7 +66,8 @@ public class OrderService {
             AddressMapper addressMapper,
             OperationLogService logService,
             CouponService couponService,
-            SettlementService settlementService
+            SettlementService settlementService,
+            CartItemMapper cartItemMapper
     ) {
         this.orderInfoMapper = orderInfoMapper;
         this.orderItemMapper = orderItemMapper;
@@ -67,6 +77,7 @@ public class OrderService {
         this.logService = logService;
         this.couponService = couponService;
         this.settlementService = settlementService;
+        this.cartItemMapper = cartItemMapper;
     }
 
     public List<OrderInfo> myOrders() {
@@ -116,7 +127,7 @@ public class OrderService {
                 : couponService.validate(request.getCouponId(), user.getUserId(), total);
 
         OrderInfo order = new OrderInfo();
-        order.setOrderNo("JD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")));
+        order.setOrderNo(generateOrderNo());
         order.setUserId(user.getUserId());
         order.setMerchantId(product.getMerchantId());
         order.setTotalAmount(total);
@@ -147,6 +158,95 @@ public class OrderService {
         orderItemMapper.insert(item);
         logService.log("ORDER", "CREATE", "用户提交订单：" + order.getOrderNo());
         return order;
+    }
+
+    @Transactional
+    public List<OrderInfo> createFromCart(CartOrderCreateRequest request) {
+        AuthUser user = RoleGuard.requireRole(Constants.ROLE_USER);
+        if (cartItemMapper == null) {
+            throw new BizException("购物车下单服务不可用");
+        }
+        LinkedHashSet<Long> requestedIds = new LinkedHashSet<>(request.getCartItemIds());
+        if (requestedIds.contains(null) || requestedIds.size() != request.getCartItemIds().size()) {
+            throw new BizException("购物车商品参数无效或存在重复项");
+        }
+
+        List<CartItem> cartItems = cartItemMapper.selectBatchIds(requestedIds);
+        if (cartItems.size() != requestedIds.size()) {
+            throw new BizException("部分购物车商品已被删除，请重新选择");
+        }
+        Map<Long, CartItem> cartItemMap = new LinkedHashMap<>();
+        for (CartItem cartItem : cartItems) {
+            if (!user.getUserId().equals(cartItem.getUserId())) {
+                throw new BizException(403, "不能结算其他用户的购物车商品");
+            }
+            cartItemMap.put(cartItem.getId(), cartItem);
+        }
+
+        Map<Long, List<CartOrderLine>> merchantLines = new LinkedHashMap<>();
+        for (Long cartItemId : requestedIds) {
+            CartItem cartItem = cartItemMap.get(cartItemId);
+            if (cartItem.getQuantity() == null || cartItem.getQuantity() < 1) {
+                throw new BizException("购物车商品数量无效");
+            }
+            Product product = productMapper.selectById(cartItem.getProductId());
+            if (product == null || !Constants.PRODUCT_APPROVED.equals(product.getAuditStatus())
+                    || !Constants.SHELF_ON.equals(product.getShelfStatus())) {
+                throw new BizException("购物车中包含不可购买商品，请重新选择");
+            }
+            ProductSku sku = resolveSku(product, cartItem.getSkuId());
+            BigDecimal price = sku == null ? product.getPrice() : sku.getPrice();
+            merchantLines.computeIfAbsent(product.getMerchantId(), ignored -> new ArrayList<>())
+                    .add(new CartOrderLine(cartItem, product, sku, price));
+        }
+        if (merchantLines.size() > 1 && request.getCouponId() != null) {
+            throw new BizException("跨店订单暂不支持使用单张优惠券");
+        }
+
+        List<OrderInfo> orders = new ArrayList<>();
+        for (Map.Entry<Long, List<CartOrderLine>> entry : merchantLines.entrySet()) {
+            BigDecimal total = entry.getValue().stream()
+                    .map(line -> line.price().multiply(BigDecimal.valueOf(line.cartItem().getQuantity())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            CouponDetail coupon = couponService == null ? null
+                    : couponService.validate(request.getCouponId(), user.getUserId(), total);
+
+            OrderInfo order = new OrderInfo();
+            order.setOrderNo(generateOrderNo());
+            order.setUserId(user.getUserId());
+            order.setMerchantId(entry.getKey());
+            order.setTotalAmount(total);
+            order.setCouponId(coupon == null ? null : coupon.getUserCouponId());
+            order.setDiscountAmount(coupon == null ? BigDecimal.ZERO : coupon.getDiscountAmount());
+            order.setPayableAmount(total.subtract(order.getDiscountAmount()));
+            order.setStatus(Constants.ORDER_WAIT_PAY);
+            order.setSettlementStatus("UNSETTLED");
+            fillAddress(order, user.getUserId(), request);
+            order.setCreatedAt(LocalDateTime.now());
+            orderInfoMapper.insert(order);
+
+            for (CartOrderLine line : entry.getValue()) {
+                lockStock(line.product(), line.sku(), line.cartItem().getQuantity());
+                OrderItem item = new OrderItem();
+                item.setOrderId(order.getId());
+                item.setProductId(line.product().getId());
+                item.setSkuId(line.sku() == null ? null : line.sku().getId());
+                item.setSkuCode(line.sku() == null ? null : line.sku().getSkuCode());
+                item.setSpecName(line.sku() == null ? "默认规格" : line.sku().getSpecName());
+                item.setProductName(line.product().getName());
+                item.setProductImage(line.product().getMainImage());
+                item.setPrice(line.price());
+                item.setQuantity(line.cartItem().getQuantity());
+                orderItemMapper.insert(item);
+            }
+            if (couponService != null) {
+                couponService.lock(request.getCouponId(), user.getUserId(), order.getId());
+            }
+            logService.log("ORDER", "CREATE_FROM_CART", "购物车提交订单：" + order.getOrderNo());
+            orders.add(order);
+        }
+        cartItemMapper.deleteBatchIds(requestedIds);
+        return orders;
     }
 
     @Transactional
@@ -296,6 +396,27 @@ public class OrderService {
         order.setReceiverAddress(request.getReceiverAddress() == null ? "北京市朝阳区演示地址" : request.getReceiverAddress());
     }
 
+    private void fillAddress(OrderInfo order, Long userId, CartOrderCreateRequest request) {
+        if (request.getAddressId() != null) {
+            Address address = addressMapper.selectById(request.getAddressId());
+            if (address == null || !address.getUserId().equals(userId)) {
+                throw new BizException("收货地址不存在");
+            }
+            order.setReceiver(address.getReceiver());
+            order.setReceiverPhone(address.getPhone());
+            order.setReceiverAddress(address.getProvince() + address.getCity() + address.getDetail());
+            return;
+        }
+        order.setReceiver(request.getReceiver());
+        order.setReceiverPhone(request.getReceiverPhone());
+        order.setReceiverAddress(request.getReceiverAddress());
+    }
+
+    private String generateOrderNo() {
+        return "JD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
+                + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
     private ProductSku resolveSku(Product product, Long skuId) {
         if (productSkuMapper == null) {
             if (product.getStock() < 1) {
@@ -340,5 +461,8 @@ public class OrderService {
         if (couponService != null) {
             couponService.release(order.getId());
         }
+    }
+
+    private record CartOrderLine(CartItem cartItem, Product product, ProductSku sku, BigDecimal price) {
     }
 }

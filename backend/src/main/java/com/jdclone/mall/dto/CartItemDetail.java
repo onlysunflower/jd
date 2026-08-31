@@ -11,6 +11,7 @@ import lombok.Data;
 public class CartItemDetail {
     private Long id;
     private Long productId;
+    private Long merchantId;
     private Long skuId;
     private String skuCode;
     private String specName;

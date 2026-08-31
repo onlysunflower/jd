@@ -3,7 +3,7 @@
     <div class="toolbar">
       <div>
         <h2>购物车</h2>
-        <p class="muted">一次只能选择一件商品进入确认订单</p>
+        <p class="muted">可自由勾选多件商品，同店商品合并下单，跨店商品自动拆单</p>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
     </div>
@@ -18,9 +18,9 @@
     <div v-else-if="items.length" class="cart-list">
       <article v-for="row in items" :key="row.id" class="cart-row" :class="{ 'is-unavailable': !row.purchasable }">
         <div class="cart-select">
-          <el-radio v-model="selectedId" :label="row.id" :disabled="!row.purchasable || isBusy(row.id)">
+          <el-checkbox v-model="selectedIds" :value="row.id" :disabled="!row.purchasable || isBusy(row.id)">
             <span class="sr-only">选择 {{ row.productName || '该商品' }}</span>
-          </el-radio>
+          </el-checkbox>
         </div>
         <div class="cart-image-wrap">
           <img v-if="row.productImage" :src="row.productImage" :alt="row.productName" @error="hideBrokenImage" />
@@ -55,8 +55,11 @@
     </div>
 
     <section v-if="items.length" class="cart-summary">
-      <div><span class="muted">购物车总价</span><strong class="price"><em>¥</em>{{ cartTotal }}</strong></div>
-      <div class="cart-summary__actions"><span v-if="selectedItem" class="muted">已选 1 件，合计 <b class="price small"><em>¥</em>{{ subtotal(selectedItem) }}</b></span><span v-else class="muted">请选择一个可结算商品</span><el-button type="primary" :disabled="!selectedItem" @click="checkout">去确认订单</el-button></div>
+      <div class="cart-summary__select">
+        <el-checkbox :model-value="allSelected" :indeterminate="partlySelected" :disabled="!purchasableItems.length" @change="toggleAll">全选</el-checkbox>
+        <span class="muted">共 {{ items.length }} 种商品</span>
+      </div>
+      <div class="cart-summary__actions"><span v-if="selectedItems.length" class="muted">已选 {{ selectedItems.length }} 种，共 {{ selectedQuantity }} 件，合计 <b class="price small"><em>¥</em>{{ selectedTotal }}</b></span><span v-else class="muted">请选择要结算的商品</span><el-button type="primary" :disabled="!selectedItems.length || selectedBusy" @click="checkout">去确认订单</el-button></div>
     </section>
   </div>
 </template>
@@ -72,25 +75,32 @@ const router = useRouter()
 const items = ref([])
 const loading = ref(false)
 const loadError = ref(false)
-const selectedId = ref(null)
+const selectedIds = ref([])
 const updatingId = ref(null)
 const removingId = ref(null)
 
-const selectedItem = computed(() => items.value.find((item) => item.id === selectedId.value && item.purchasable) || null)
-const cartTotal = computed(() => items.value.reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0).toFixed(2))
+const purchasableItems = computed(() => items.value.filter((item) => item.purchasable))
+const selectedItems = computed(() => items.value.filter((item) => selectedIds.value.includes(item.id) && item.purchasable))
+const selectedQuantity = computed(() => selectedItems.value.reduce((total, item) => total + Number(item.quantity || 0), 0))
+const selectedTotal = computed(() => selectedItems.value.reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 0), 0).toFixed(2))
+const allSelected = computed(() => purchasableItems.value.length > 0 && selectedItems.value.length === purchasableItems.value.length)
+const partlySelected = computed(() => selectedItems.value.length > 0 && !allSelected.value)
+const selectedBusy = computed(() => selectedIds.value.some((id) => isBusy(id)))
 
 function money(value) { return Number(value || 0).toFixed(2) }
 function subtotal(row) { return (Number(row.price || 0) * Number(row.quantity || 0)).toFixed(2) }
 function isBusy(id) { return updatingId.value === id || removingId.value === id }
 function canUpdate(row) { return Number(row.availableStock || 0) > 0 }
 function hideBrokenImage(event) { event.target.style.display = 'none' }
+function toggleAll(checked) { selectedIds.value = checked ? purchasableItems.value.map((item) => item.id) : [] }
 
 async function load() {
   loading.value = true
   loadError.value = false
   try {
     items.value = await cartApi.list()
-    if (!items.value.some((item) => item.id === selectedId.value && item.purchasable)) selectedId.value = null
+    const availableIds = new Set(items.value.filter((item) => item.purchasable).map((item) => item.id))
+    selectedIds.value = selectedIds.value.filter((id) => availableIds.has(id))
   } catch (error) {
     loadError.value = true
     ElMessage.error(error.message || '购物车加载失败')
@@ -107,7 +117,7 @@ async function updateQuantity(row, value) {
     const updated = await cartApi.update(row.id, quantity)
     const index = items.value.findIndex((item) => item.id === row.id)
     if (index !== -1) items.value[index] = updated
-    if (selectedId.value === row.id && !updated.purchasable) selectedId.value = null
+    if (!updated.purchasable) selectedIds.value = selectedIds.value.filter((id) => id !== row.id)
     ElMessage.success('数量已更新')
   } catch (error) {
     ElMessage.error(error.message || '数量更新失败')
@@ -127,7 +137,7 @@ async function remove(row) {
   try {
     await cartApi.remove(row.id)
     items.value = items.value.filter((item) => item.id !== row.id)
-    if (selectedId.value === row.id) selectedId.value = null
+    selectedIds.value = selectedIds.value.filter((id) => id !== row.id)
     ElMessage.success('商品已删除')
   } catch (error) {
     ElMessage.error(error.message || '删除失败')
@@ -137,12 +147,11 @@ async function remove(row) {
 }
 
 function checkout() {
-  if (!selectedItem.value) {
-    ElMessage.warning('请选择一个可结算商品')
+  if (!selectedItems.value.length) {
+    ElMessage.warning('请选择要结算的商品')
     return
   }
-  const row = selectedItem.value
-  router.push({ path: '/checkout', query: { productId: row.productId, skuId: row.skuId, quantity: row.quantity, cartItemId: row.id, source: 'cart' } })
+  router.push({ path: '/checkout', query: { cartItemIds: selectedItems.value.map((item) => item.id).join(','), source: 'cart' } })
 }
 
 onMounted(load)
@@ -165,6 +174,7 @@ onMounted(load)
 .cart-actions { text-align: right; }
 .cart-summary { position: sticky; bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, .96); box-shadow: 0 8px 24px rgba(15, 23, 42, .08); }
 .cart-summary > div { display: flex; align-items: center; gap: 12px; }
+.cart-summary__select { flex-shrink: 0; }
 .cart-summary__actions { margin-left: auto; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 @media (max-width: 900px) { .cart-row { grid-template-columns: 32px 72px 1fr 104px; gap: 12px; } .cart-image-wrap { width: 72px; height: 72px; } .cart-price, .cart-quantity, .cart-subtotal, .cart-actions { grid-column: 3 / -1; } .cart-actions { text-align: left; } .cart-summary { align-items: flex-start; flex-direction: column; } .cart-summary__actions { width: 100%; margin-left: 0; justify-content: space-between; } }

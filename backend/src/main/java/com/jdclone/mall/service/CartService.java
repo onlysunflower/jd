@@ -153,6 +153,7 @@ public class CartService {
             return detail;
         }
         detail.setProductName(product.getName());
+        detail.setMerchantId(product.getMerchantId());
         detail.setProductImage(product.getMainImage());
         detail.setSkuCode(sku == null ? null : sku.getSkuCode());
         detail.setSpecName(sku == null ? "默认规格" : sku.getSpecName());

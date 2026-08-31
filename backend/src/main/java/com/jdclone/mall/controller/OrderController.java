@@ -2,6 +2,7 @@ package com.jdclone.mall.controller;
 
 import com.jdclone.mall.common.ApiResponse;
 import com.jdclone.mall.dto.OrderCreateRequest;
+import com.jdclone.mall.dto.CartOrderCreateRequest;
 import com.jdclone.mall.entity.OrderInfo;
 import com.jdclone.mall.entity.OrderItem;
 import com.jdclone.mall.service.OrderService;
@@ -41,6 +42,11 @@ public class OrderController {
     @PostMapping
     public ApiResponse<OrderInfo> create(@Valid @RequestBody OrderCreateRequest request) {
         return ApiResponse.ok(orderService.create(request));
+    }
+
+    @PostMapping("/from-cart")
+    public ApiResponse<List<OrderInfo>> createFromCart(@Valid @RequestBody CartOrderCreateRequest request) {
+        return ApiResponse.ok(orderService.createFromCart(request));
     }
 
     @PostMapping("/{id}/pay")
